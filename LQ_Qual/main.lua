@@ -8,6 +8,7 @@ local options = {
   { "Empty", COLOR, lcd.RGB(220, 220, 220) }   -- Nicht aktive Balken
 }
 
+
 local COLOR_BASE = 200
 
 local function normalizeRSSI(rssi)
