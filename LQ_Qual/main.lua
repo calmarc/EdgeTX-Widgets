@@ -138,7 +138,7 @@ local function refresh(widget)
 end
 
 return {
-  name = "ASignalBars",
+  name = "LQ_Qual",
   options = options,
   create = function(zone, options) return { zone = zone, options = options } end,
   update = function(widget, options) widget.options = options end,

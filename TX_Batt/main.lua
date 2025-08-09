@@ -142,7 +142,7 @@ local function refresh(widget)
 end
 
 return {
-  name = "BatView",
+  name = "TX_Batt",
   options = options,
   create = create,
   update = update,
