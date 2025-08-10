@@ -57,6 +57,7 @@ local function drawBars(x, y, w, h, percent, opts)
   local gap = 1
   local barWidth = math.floor((w - (bars - 1) * gap) / bars)
   local maxBarHeight = h - 4
+  local growthFactor = 2.0 -- >1 = exponentiell ansteigend
 
   local filledBars = math.floor((percent / 100) * bars + 0.5)
 
@@ -70,7 +71,8 @@ local function drawBars(x, y, w, h, percent, opts)
   end
 
   for i = 1, bars do
-    local barHeight = math.floor(i * maxBarHeight / bars)
+    -- Höhe exponentiell wachsen lassen
+    local barHeight = math.floor((i / bars) ^ growthFactor * maxBarHeight)
     local barX = x + (i - 1) * (barWidth + gap)
     local barY = y + h - barHeight
 
