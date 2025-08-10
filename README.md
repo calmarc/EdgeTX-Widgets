@@ -20,12 +20,16 @@ It combines **RQly** and RSSI into a single visual indicator.
 
 **Options**:
 
-| Name     | Type  | Description                               | Default   |
-|----------|-------|-------------------------------------------|-----------|
-| BarColor | COLOR | Bar color when signal is empty            | Gray      |
-| Low      | COLOR | Bar color for low signal                  | Red       |
-| Medium   | COLOR | Bar color for medium signal               | Orange    |
-| High     | COLOR | Bar color for high signal                 | Green     |
+| Name        | Type  | Description                               | Default   |
+|-------------|-------|-------------------------------------------|-----------|
+| ShowPercent | BOOL  | Show RQly+RSSI mix                        | White      |
+| Text        | COLOR | Font color                                | White      |
+| Shadow      | COLOR | Font-Shadow color                         | Gray      |
+| BarCount    | VALUE | Number of bars                            | 10        |
+| BarColor    | COLOR | Bar color when signal is empty            | Gray      |
+| Low         | COLOR | Bar color for low signal                  | Red       |
+| Medium      | COLOR | Bar color for medium signal               | Orange    |
+| High        | COLOR | Bar color for high signal                 | Green     |
 
 ---
 
