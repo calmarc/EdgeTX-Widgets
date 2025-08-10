@@ -1,4 +1,6 @@
 local options = {
+  { "tx_voltage", BOOL, 1 },
+  { "Cells", VALUE, 3 },
   { "PerCell", BOOL, 1 },
   { "Text", COLOR, lcd.RGB(255, 255, 255) },
   { "Shadow", COLOR, lcd.RGB(80, 80, 80) },
@@ -6,10 +8,10 @@ local options = {
   { "High", COLOR, lcd.RGB(80, 170, 0) },
   { "Medium", COLOR, lcd.RGB(150, 150, 0) },
   { "Low", COLOR, lcd.RGB(255, 165, 0) },
-  { "Empty", COLOR, lcd.RGB(255, 0, 0) },
-  { "Frame", COLOR, lcd.RGB(200, 200, 200) }, -- heller Rahmen
-  { "EmptyBar", COLOR, lcd.RGB(50, 50, 50) }
+  { "Empty", COLOR, lcd.RGB(255, 0, 0) }
 }
+
+local MIN_FILL = 8 -- Mindestbreite der gefüllten Balken
 
 local function getBatteryColor(percent, opts)
   if percent >= 80 then return opts.Full end
@@ -34,40 +36,59 @@ local function drawBattery(frameX, frameY, frameW, frameH, voltage, percent, col
   end
 
   -- Batteriegröße
-  local capW = math.max(2, math.floor(frameW * 0.06))  -- etwas schmaler
+  local capW = math.max(2, math.floor(frameW * 0.06))
   local bodyW = frameW - capW - 2
   local bodyH = frameH
-  local capH = math.floor(bodyH * 0.35) -- etwas kürzer
+  local capH = math.floor(bodyH * 0.35)
 
-  -- Batterie-Rahmen & Hintergrund
-  lcd.drawRectangle(frameX, frameY, bodyW, bodyH, SOLID, opts.Frame)
-  lcd.drawFilledRectangle(frameX + 1, frameY + 1, bodyW - 2, bodyH - 2, opts.EmptyBar)
+  -- Rahmen
+  lcd.drawRectangle(frameX, frameY, bodyW, bodyH, SOLID, lcd.RGB(200, 200, 200))
+  lcd.drawFilledRectangle(frameX + 1, frameY + 1, bodyW - 2, bodyH - 2, lcd.RGB(50, 50, 50))
 
   -- Pluspol
   local capX = frameX + bodyW
   local capY = frameY + (bodyH - capH) // 2
-  lcd.drawFilledRectangle(capX, capY, capW, capH, opts.Frame)
+  lcd.drawFilledRectangle(capX, capY, capW, capH, lcd.RGB(200, 200, 200))
 
   -- Füllung
-  local fillW = math.floor((bodyW - 4) * percent / 100)
-  if fillW > 0 then
-    lcd.drawFilledRectangle(frameX + 2, frameY + 2, fillW, bodyH - 4, color)
+
+  local fillW
+  fillW = math.floor((bodyW - 6) * percent / 100) -- vorher -4
+  if fillW < MIN_FILL then fillW = MIN_FILL end -- Mindestbreite
+
+  lcd.drawFilledRectangle(frameX + 3, frameY + 3, fillW, bodyH - 6, color)
+
+  -- Textgröße bestimmen
+  local textFlags
+  if voltage < 10 then
+    textFlags = MIDSIZE + BOLD
+  else
+    textFlags = BOLD
   end
 
-  -- Text (groß + kleines "V")
   local numText = string.format("%.1f", voltage)
   local unitText = "V"
-  local numWidth = textWidth(numText, MIDSIZE + BOLD)
+  local numWidth = textWidth(numText, textFlags)
   local unitWidth = textWidth(unitText, SMLSIZE)
   local totalWidth = numWidth + unitWidth
 
   local textX = frameX + (bodyW - totalWidth) // 2
-  local textY = frameY + (bodyH - 16) // 2 - 11  -- leicht höher gesetzt
 
-  lcd.drawText(textX + 1, textY + 1, numText, MIDSIZE + BOLD + opts.Shadow)
-  lcd.drawText(textX, textY, numText, MIDSIZE + BOLD + opts.Text)
+  -- Vertikal zentrieren
+  local centerY = frameY + (bodyH // 2)
+  local textY
+  if textFlags & MIDSIZE ~= 0 then
+    textY = centerY - 19 -- Feinkorrektur für MIDSIZE
+  else
+    textY = centerY - 10 -- Feinkorrektur für normale Größe
+  end
 
-  local unitX = textX + numWidth - 1 -- näher an Zahl
+  -- Schatten
+  lcd.drawText(textX + 1, textY + 1, numText, textFlags + opts.Shadow)
+  -- Text
+  lcd.drawText(textX, textY, numText, textFlags + opts.Text)
+
+  local unitX = textX + numWidth - 1
   lcd.drawText(unitX, textY + 4, unitText, SMLSIZE + opts.Text)
 end
 
@@ -80,20 +101,31 @@ local function update(widget, _options)
 end
 
 local function refresh(widget)
-  local rawVoltage = getValue("tx-voltage") or 0
-
   local opts = {}
   for _, def in ipairs(options) do
     opts[def[1]] = widget.options[def[1]]
   end
 
+  opts.Cells = math.max(1, math.min(opts.Cells or 2, 8))
+
+  -- Quelle auswählen
+  local rawVoltage
+  if opts.tx_voltage == 1 then
+    rawVoltage = getValue("tx-voltage") or 0
+  else
+    rawVoltage = getValue("RxBt") or 0
+  end
+
   local voltage = rawVoltage
-  local lowlimit = 6.4
-  local full = 8.4
+  local lowlimit, full
+
   if opts.PerCell == 1 then
-    voltage = voltage / 2
+    voltage = voltage / opts.Cells
     lowlimit = 3.2
     full = 4.2
+  else
+    lowlimit = 3.2 * opts.Cells
+    full = 4.2 * opts.Cells
   end
 
   local percent = getVoltagePercent(voltage, lowlimit, full)
@@ -108,7 +140,7 @@ local function refresh(widget)
 end
 
 return {
-  name = "TX_Batt",
+  name = "BattMeter",
   options = options,
   create = create,
   update = update,

@@ -111,7 +111,7 @@ local function refresh(widget)
 end
 
 return {
-  name = "LQ_Qual",
+  name = "LinkQual",
   options = options,
   create = function(zone, options) return { zone = zone, options = options } end,
   update = function(widget, options) widget.options = options end,
