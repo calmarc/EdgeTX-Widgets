@@ -7,7 +7,7 @@
 
 local options = {
   { "tx_voltage", BOOL, 1 },
-  { "Cells", VALUE, 3 },
+  { "Cells", VALUE, 2 },
   { "PerCell", BOOL, 1 },
   { "Text", COLOR, lcd.RGB(255, 255, 255) },
   { "Shadow", COLOR, lcd.RGB(80, 80, 80) },

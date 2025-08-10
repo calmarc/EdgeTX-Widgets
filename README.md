@@ -20,12 +20,12 @@ It combines **RQly** and RSSI into a single visual indicator.
 
 **Options**:
 
-| Name   | Type  | Description                               | Default   |
-|--------|-------|-------------------------------------------|-----------|
-| Empty  | COLOR | Bar color when signal is empty            | Gray      |
-| Low    | COLOR | Bar color for low signal                  | Red       |
-| Medium | COLOR | Bar color for medium signal               | Orange    |
-| High   | COLOR | Bar color for high signal                 | Green     |
+| Name     | Type  | Description                               | Default   |
+|----------|-------|-------------------------------------------|-----------|
+| BarColor | COLOR | Bar color when signal is empty            | Gray      |
+| Low      | COLOR | Bar color for low signal                  | Red       |
+| Medium   | COLOR | Bar color for medium signal               | Orange    |
+| High     | COLOR | Bar color for high signal                 | Green     |
 
 ---
 
@@ -42,15 +42,15 @@ It can display either:
 | Name       | Type   | Description                                                | Default   |
 |------------|--------|------------------------------------------------------------|-----------|
 | tx_voltage | BOOL   | Use TX battery voltage (1) or RX battery voltage (0)       | 1         |
-| Cells      | VALUE  | Number of cells (1–8)                                      | 3         |
-| PerCell    | BOOL   | Show voltage per cell (1) or total voltage (0)              | 1         |
+| Cells      | VALUE  | Number of cells (1–8)                                      | 2         |
+| PerCell    | BOOL   | Show voltage per cell (1) or total voltage (0)             | 1         |
 | Text       | COLOR  | Voltage text color                                         | White     |
 | Shadow     | COLOR  | Voltage text shadow color                                  | Dark gray |
+| BatColor   | COLOR  | General color of the battery                               | Dark gray |
 | Full       | COLOR  | Bar color for 80–100% battery                              | Green     |
 | High       | COLOR  | Bar color for 60–79% battery                               | Olive     |
 | Medium     | COLOR  | Bar color for 40–59% battery                               | Yellow    |
 | Low        | COLOR  | Bar color for 20–39% battery                               | Orange    |
-| Empty      | COLOR  | Bar color for 0–19% battery                                | Red       |
 
 ---
 
