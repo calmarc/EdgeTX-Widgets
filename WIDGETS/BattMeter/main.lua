@@ -54,7 +54,7 @@ local function drawBattery(frameX, frameY, frameW, frameH, voltage, percent, col
   lcd.drawFilledRectangle(frameX + 1, frameY + 1, bodyW - 2, bodyH - 2, opts.BatColor)
 
   -- Pluspol
-  local capX = frameX + bodyW
+  local capX = frameX + bodyW - 1
   local capY = frameY + (bodyH - capH) // 2
   lcd.drawFilledRectangle(capX, capY, capW, capH, opts.BatColor)
 
