@@ -2,6 +2,10 @@
 
 Widgets for EdgeTX (2.10.2 or similar).
 
+## Screenshot
+
+![Screenshot](images/screenshot.png)
+
 ---
 
 ## LinkMeter
@@ -59,6 +63,3 @@ It can display either:
 
 ---
 
-## Screenshot
-
-![Screenshot](images/screenshot.png)
