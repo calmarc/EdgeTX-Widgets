@@ -1,53 +1,61 @@
-# EdgeTX Widgets – LinkMeter & BattMeter
+# EdgeTX Widgets: LinkMeter & BattMeter
 
-Two widgets for EdgeTX (2.10.2 or similar).
+Two custom widgets for EdgeTX (2.10.2 or similar).
 
 ---
 
 ## LinkMeter
 
-A graphical representation of your radio link quality.  
-It primarily uses the `RQly` (Radio Quality) sensor value.  
-If `RQly` is not available, it automatically falls back to the best RSSI value from `1RSS`, `2RSS`, or `RSSI`.
+A graphical representation of the quality of your connection.  
+It combines **RQly** and RSSI into a single visual indicator.
 
-**Display**: 12 horizontal bars, growing in height from left to right.  
-The bar color changes based on quality level:
-
-- **Low** (< 80%) – Low color (default: red)  
-- **Medium** (80–89%) – Medium color (default: orange)  
-- **High** (≥ 90%) – High color (default: green)
+**Features**:
+- 9 horizontal bars (left to right, increasing height)
+- First 3 bars = low quality, next 3 = medium, last 3 = high
+- Colors for empty, low, medium, and high are configurable
+- Automatically selects the best available signal source:
+  1. `RQly`
+  2. Average of `RSSI1` and `RSSI2`
+  3. `RSSI`
 
 **Options**:
 
-| Name        | Type   | Description                                      | Default          |
-|-------------|--------|--------------------------------------------------|------------------|
-| ShowPercent | BOOL   | Show numeric percentage above bars               | 1                |
-| Text        | COLOR  | Text color                                        | White            |
-| Shadow      | COLOR  | Text shadow color                                 | Dark gray        |
-| Low         | COLOR  | Bar color for low quality                         | Red              |
-| Medium      | COLOR  | Bar color for medium quality                      | Orange           |
-| High        | COLOR  | Bar color for high quality                        | Green            |
+| Name   | Type  | Description                               | Default   |
+|--------|-------|-------------------------------------------|-----------|
+| Empty  | COLOR | Bar color when signal is empty            | Gray      |
+| Low    | COLOR | Bar color for low signal                  | Red       |
+| Medium | COLOR | Bar color for medium signal               | Orange    |
+| High   | COLOR | Bar color for high signal                 | Green     |
 
 ---
 
 ## BattMeter
 
 A graphical representation of your transmitter or receiver battery status.  
-Takes either:
+It can display either:
 
-- `tx-voltage` (Radio Battery) – default  
-- `RxBt` (Receiver Battery)
+- **TX battery voltage** (`tx-voltage`) – default
+- **RX battery voltage** (`RxBt`)
 
 **Options**:
 
-| Name     | Type   | Description                           | Default |
-|----------|--------|---------------------------------------|---------|
-| Source   | SOURCE | Voltage source                        | tx-voltage |
-| PerCell  | BOOL   | Show per-cell voltage                  | 0       |
-| Low      | COLOR  | Low voltage color                      | Red     |
-| Medium   | COLOR  | Medium voltage color                   | Orange  |
-| High     | COLOR  | High voltage color                     | Green   |
+| Name       | Type   | Description                                                | Default   |
+|------------|--------|------------------------------------------------------------|-----------|
+| tx_voltage | BOOL   | Use TX battery voltage (1) or RX battery voltage (0)       | 1         |
+| Cells      | VALUE  | Number of cells (1–8)                                      | 3         |
+| PerCell    | BOOL   | Show voltage per cell (1) or total voltage (0)              | 1         |
+| Text       | COLOR  | Voltage text color                                         | White     |
+| Shadow     | COLOR  | Voltage text shadow color                                  | Dark gray |
+| Full       | COLOR  | Bar color for 80–100% battery                              | Green     |
+| High       | COLOR  | Bar color for 60–79% battery                               | Olive     |
+| Medium     | COLOR  | Bar color for 40–59% battery                               | Yellow    |
+| Low        | COLOR  | Bar color for 20–39% battery                               | Orange    |
+| Empty      | COLOR  | Bar color for 0–19% battery                                | Red       |
 
 ---
 
+## Screenshot
+
 ![Screenshot](images/screenshot.png)
+
+---
