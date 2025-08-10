@@ -35,6 +35,7 @@ It combines **`RQly`** and **`RSSI`** into a single visual indicator.
 
 ## BattMeter
 
+
 A graphical representation of your transmitter or receiver battery status.  
 It can display either:
 
