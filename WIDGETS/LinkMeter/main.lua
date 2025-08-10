@@ -9,13 +9,14 @@ local options = {
   { "ShowPercent", BOOL, 1 },                           -- Prozentwert anzeigen
   { "Text", COLOR, lcd.RGB(255, 255, 255) },            -- Textfarbe
   { "Shadow", COLOR, lcd.RGB(85, 85, 85) },             -- Schattentextfarbe
-  { "BarColor", COLOR, lcd.RGB(5, 5, 5) },                 -- Leere Balken
+  { "BarCount", VALUE, 10, 4, 22 },                     -- Anzahl Balken
+  { "BarColor", COLOR, lcd.RGB(5, 5, 5) },              -- Leere Balken
   { "Low", COLOR, lcd.RGB(255, 0, 0) },                 -- < 80%
   { "Medium", COLOR, lcd.RGB(255, 165, 0) },            -- 80–89%
   { "High", COLOR, lcd.RGB(0, 255, 0) }                 -- >= 90%
 }
 
-local WEIGHT_TQ = 0.8
+local WEIGHT_RQ = 0.8
 local WEIGHT_RSSI = 0.2
 
 local function clampPercent(value)
@@ -51,7 +52,7 @@ local function getSignalValue()
   local rssiNorm = getBestRSSI()
   if tq and rssiNorm then
     local tqClamped = clampPercent(tq)
-    return math.floor(WEIGHT_TQ * tqClamped + WEIGHT_RSSI * rssiNorm + 0.5)
+    return math.floor(WEIGHT_RQ * tqClamped + WEIGHT_RSSI * rssiNorm + 0.5)
   elseif tq then
     return clampPercent(tq)
   elseif rssiNorm then
@@ -62,7 +63,8 @@ local function getSignalValue()
 end
 
 local function drawBars(x, y, w, h, percent, opts)
-  local bars = 10
+  local bars = opts.BarCount
+--  local bars = 10
   local gap = 1
   local barWidth = math.floor((w - (bars - 1) * gap) / bars)
   local maxBarHeight = h - 4
