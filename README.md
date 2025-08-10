@@ -11,9 +11,9 @@ It combines **`RQly`** and **`RSSI`** into a single visual indicator.
 
 **Features**:
 - Horizontal bars (left to right, increasing height)
-- Colors and count of the bars are configurable
-- Colors for low, medium, and high are configurable
-- Automatically selects the best available signal source and combines them:
+- **Number of bars is fully configurable**
+- Color thresholds for low, medium, and high signal quality are configurable
+- Automatically selects and combines the best available signal sources:
   1. **`RQly`**
   2. Average of **`1RSS`** and **`2RSS`**
   3. **`RSSI`**
@@ -22,10 +22,10 @@ It combines **`RQly`** and **`RSSI`** into a single visual indicator.
 
 | Name        | Type  | Description                               | Default   |
 |-------------|-------|-------------------------------------------|-----------|
-| ShowPercent | BOOL  | Show **`RQly`** + **`RSSI`** mix           | White     |
+| ShowPercent | BOOL  | Show **`RQly`** + **`RSSI`** mix           | 1         |
 | Text        | COLOR | Font color                                | White     |
 | Shadow      | COLOR | Font-Shadow color                         | Gray      |
-| BarCount    | VALUE | Number of bars                            | 10        |
+| BarCount    | VALUE | Number of bars (5–20)                     | 10        |
 | BarColor    | COLOR | Bar color when signal is empty            | Gray      |
 | Low         | COLOR | Bar color for low signal                  | Red       |
 | Medium      | COLOR | Bar color for medium signal               | Orange    |
