@@ -1,11 +1,15 @@
 local options = {
-  { "ShowPercent", BOOL, 1 },
-  { "Text", COLOR, lcd.RGB(255, 255, 255) },
-  { "Shadow", COLOR, lcd.RGB(85, 85, 85) },
-  { "Low", COLOR, lcd.RGB(255, 0, 0) },        -- unter 80%
-  { "Medium", COLOR, lcd.RGB(255, 165, 0) },   -- 80–90%
-  { "High", COLOR, lcd.RGB(0, 255, 0) }        -- 90–100%
+  { "ShowPercent", BOOL, 1 },                           -- Prozentwert anzeigen
+  { "Text", COLOR, lcd.RGB(255, 255, 255) },            -- Textfarbe
+  { "Shadow", COLOR, lcd.RGB(85, 85, 85) },             -- Schattentextfarbe
+  { "Empty", COLOR, lcd.RGB(5, 5, 5) },                 -- Leere Balken
+  { "Low", COLOR, lcd.RGB(255, 0, 0) },                 -- < 80%
+  { "Medium", COLOR, lcd.RGB(255, 165, 0) },            -- 80–89%
+  { "High", COLOR, lcd.RGB(0, 255, 0) }                 -- >= 90%
 }
+
+local WEIGHT_TQ = 0.8
+local WEIGHT_RSSI = 0.2
 
 local function clampPercent(value)
   value = tonumber(value) or 0
@@ -40,9 +44,7 @@ local function getSignalValue()
   local rssiNorm = getBestRSSI()
   if tq and rssiNorm then
     local tqClamped = clampPercent(tq)
-    local weightTQ = 0.8
-    local weightRSSI = 0.2
-    return math.floor(weightTQ * tqClamped + weightRSSI * rssiNorm + 0.5)
+    return math.floor(WEIGHT_TQ * tqClamped + WEIGHT_RSSI * rssiNorm + 0.5)
   elseif tq then
     return clampPercent(tq)
   elseif rssiNorm then
@@ -53,11 +55,11 @@ local function getSignalValue()
 end
 
 local function drawBars(x, y, w, h, percent, opts)
-  local bars = 9
+  local bars = 12
   local gap = 1
   local barWidth = math.floor((w - (bars - 1) * gap) / bars)
   local maxBarHeight = h - 4
-  local growthFactor = 2.0 -- >1 = exponentiell ansteigend
+  local growthFactor = 2.0 -- exponentielles Wachstum
 
   local filledBars = math.floor((percent / 100) * bars + 0.5)
 
@@ -71,7 +73,6 @@ local function drawBars(x, y, w, h, percent, opts)
   end
 
   for i = 1, bars do
-    -- Höhe exponentiell wachsen lassen
     local barHeight = math.floor((i / bars) ^ growthFactor * maxBarHeight)
     local barX = x + (i - 1) * (barWidth + gap)
     local barY = y + h - barHeight
@@ -79,7 +80,7 @@ local function drawBars(x, y, w, h, percent, opts)
     if i <= filledBars then
       lcd.drawFilledRectangle(barX, barY, barWidth, barHeight, fillColor)
     else
-      lcd.drawFilledRectangle(barX, barY, barWidth, barHeight, lcd.RGB(5, 5, 5))
+      lcd.drawFilledRectangle(barX, barY, barWidth, barHeight, opts.Empty)
     end
   end
 end
@@ -103,6 +104,9 @@ local function refresh(widget)
   local w = widget.zone.w or 100
   local h = widget.zone.h or 40
 
+  -- Alles leicht nach oben verschieben
+  y = y - 2
+
   drawBars(x, y, w, h, percent, opts)
 
   if opts.ShowPercent == 1 then
@@ -111,7 +115,7 @@ local function refresh(widget)
 end
 
 return {
-  name = "LinkQual",
+  name = "LinkMeter",
   options = options,
   create = function(zone, options) return { zone = zone, options = options } end,
   update = function(widget, options) widget.options = options end,
