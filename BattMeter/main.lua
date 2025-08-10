@@ -4,11 +4,11 @@ local options = {
   { "PerCell", BOOL, 1 },
   { "Text", COLOR, lcd.RGB(255, 255, 255) },
   { "Shadow", COLOR, lcd.RGB(80, 80, 80) },
+  { "BatColor", COLOR, lcd.RGB(255, 0, 0) },
   { "Full", COLOR, lcd.RGB(0, 170, 0) },
   { "High", COLOR, lcd.RGB(80, 170, 0) },
   { "Medium", COLOR, lcd.RGB(150, 150, 0) },
-  { "Low", COLOR, lcd.RGB(255, 165, 0) },
-  { "Empty", COLOR, lcd.RGB(255, 0, 0) }
+  { "Low", COLOR, lcd.RGB(255, 165, 0) }
 }
 
 local MIN_FILL = 8 -- Mindestbreite der gefüllten Balken
@@ -18,7 +18,7 @@ local function getBatteryColor(percent, opts)
   if percent >= 60 then return opts.High end
   if percent >= 40 then return opts.Medium end
   if percent >= 20 then return opts.Low end
-  return opts.Empty
+  return opts.BatColor
 end
 
 local function getVoltagePercent(voltage, minV, maxV)
@@ -36,19 +36,20 @@ local function drawBattery(frameX, frameY, frameW, frameH, voltage, percent, col
   end
 
   -- Batteriegröße
-  local capW = math.max(2, math.floor(frameW * 0.06))
+  local capW = math.max(2, math.floor(frameW * 0.03))
+  if capW < 8 then capW = 6 end
   local bodyW = frameW - capW - 2
   local bodyH = frameH
   local capH = math.floor(bodyH * 0.35)
 
   -- Rahmen
-  lcd.drawRectangle(frameX, frameY, bodyW, bodyH, SOLID, lcd.RGB(200, 200, 200))
-  lcd.drawFilledRectangle(frameX + 1, frameY + 1, bodyW - 2, bodyH - 2, lcd.RGB(50, 50, 50))
+  -- lcd.drawRectangle(frameX, frameY, bodyW, bodyH, SOLID, lcd.RGB(200, 200, 200))
+  lcd.drawFilledRectangle(frameX + 1, frameY + 1, bodyW - 2, bodyH - 2, opts.BatColor)
 
   -- Pluspol
   local capX = frameX + bodyW
   local capY = frameY + (bodyH - capH) // 2
-  lcd.drawFilledRectangle(capX, capY, capW, capH, lcd.RGB(200, 200, 200))
+  lcd.drawFilledRectangle(capX, capY, capW, capH, opts.BatColor)
 
   -- Füllung
 

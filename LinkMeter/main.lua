@@ -2,7 +2,7 @@ local options = {
   { "ShowPercent", BOOL, 1 },                           -- Prozentwert anzeigen
   { "Text", COLOR, lcd.RGB(255, 255, 255) },            -- Textfarbe
   { "Shadow", COLOR, lcd.RGB(85, 85, 85) },             -- Schattentextfarbe
-  { "Empty", COLOR, lcd.RGB(5, 5, 5) },                 -- Leere Balken
+  { "BarColor", COLOR, lcd.RGB(5, 5, 5) },                 -- Leere Balken
   { "Low", COLOR, lcd.RGB(255, 0, 0) },                 -- < 80%
   { "Medium", COLOR, lcd.RGB(255, 165, 0) },            -- 80–89%
   { "High", COLOR, lcd.RGB(0, 255, 0) }                 -- >= 90%
@@ -55,11 +55,12 @@ local function getSignalValue()
 end
 
 local function drawBars(x, y, w, h, percent, opts)
-  local bars = 12
+  local bars = 10
   local gap = 1
   local barWidth = math.floor((w - (bars - 1) * gap) / bars)
   local maxBarHeight = h - 4
-  local growthFactor = 2.0 -- exponentielles Wachstum
+  local minHeight = 6
+  local growthFactor = 2.0
 
   local filledBars = math.floor((percent / 100) * bars + 0.5)
 
@@ -72,17 +73,24 @@ local function drawBars(x, y, w, h, percent, opts)
     fillColor = opts.High
   end
 
+  local lastHeight = 0
   for i = 1, bars do
-    local barHeight = math.floor((i / bars) ^ growthFactor * maxBarHeight)
+    local factor = (i - 1) / (bars - 1)
+    local rawHeight = minHeight + (maxBarHeight - minHeight) * (factor ^ growthFactor)
+    local barHeight = math.max(lastHeight + 1, math.ceil(rawHeight)) -- garantiert +1 pro Balken
+    if barHeight > maxBarHeight then barHeight = maxBarHeight end
+    lastHeight = barHeight
+
     local barX = x + (i - 1) * (barWidth + gap)
     local barY = y + h - barHeight
 
     if i <= filledBars then
       lcd.drawFilledRectangle(barX, barY, barWidth, barHeight, fillColor)
     else
-      lcd.drawFilledRectangle(barX, barY, barWidth, barHeight, opts.Empty)
+      lcd.drawFilledRectangle(barX, barY, barWidth, barHeight, opts.BarColor)
     end
   end
+  return barWidth
 end
 
 local function drawPercentText(x, y, percent, opts)
@@ -110,7 +118,7 @@ local function refresh(widget)
   drawBars(x, y, w, h, percent, opts)
 
   if opts.ShowPercent == 1 then
-    drawPercentText(x, y, percent, opts)
+    drawPercentText(x , y, percent, opts)
   end
 end
 
