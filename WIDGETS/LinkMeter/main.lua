@@ -1,3 +1,10 @@
+-- LinkMeter Widget
+-- Copyright (C) 2025 Calari and chatgpt
+-- This program is free software: you can redistribute it and/or modify
+-- it under the terms of the GNU General Public License as published by
+-- the Free Software Foundation, either version 3 of the License, or
+-- (at your option) any later version.
+
 local options = {
   { "ShowPercent", BOOL, 1 },                           -- Prozentwert anzeigen
   { "Text", COLOR, lcd.RGB(255, 255, 255) },            -- Textfarbe
