@@ -11,7 +11,7 @@ local options = {
   { "PerCell", BOOL, 1 },
   { "Text", COLOR, lcd.RGB(255, 255, 255) },
   { "Shadow", COLOR, lcd.RGB(80, 80, 80) },
-  { "BatColor", COLOR, lcd.RGB(255, 0, 0) },
+  { "BatColor", COLOR, lcd.RGB(30, 30, 30) },
   { "Full", COLOR, lcd.RGB(0, 170, 0) },
   { "High", COLOR, lcd.RGB(80, 170, 0) },
   { "Medium", COLOR, lcd.RGB(150, 150, 0) },

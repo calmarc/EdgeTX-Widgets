@@ -10,7 +10,7 @@ local options = {
   { "Text", COLOR, lcd.RGB(255, 255, 255) },            -- Textfarbe
   { "Shadow", COLOR, lcd.RGB(85, 85, 85) },             -- Schattentextfarbe
   { "BarCount", VALUE, 10, 4, 22 },                     -- Anzahl Balken
-  { "BarColor", COLOR, lcd.RGB(5, 5, 5) },              -- Leere Balken
+  { "BarColor", COLOR, lcd.RGB(30, 30, 30) },           -- Leere Balken
   { "Low", COLOR, lcd.RGB(255, 0, 0) },                 -- < 80%
   { "Medium", COLOR, lcd.RGB(255, 165, 0) },            -- 80–89%
   { "High", COLOR, lcd.RGB(0, 255, 0) }                 -- >= 90%

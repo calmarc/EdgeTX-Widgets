@@ -1,6 +1,6 @@
 # EdgeTX Widgets: LinkMeter & BattMeter
 
-Two custom widgets for EdgeTX (2.10.2 or similar).
+Widgets for EdgeTX (2.10.2 or similar).
 
 ---
 
@@ -10,13 +10,13 @@ A graphical representation of the quality of your connection.
 It combines **RQly** and RSSI into a single visual indicator.
 
 **Features**:
-- 9 horizontal bars (left to right, increasing height)
+- Horizontal bars (left to right, increasing height)
 - First 3 bars = low quality, next 3 = medium, last 3 = high
 - Colors for empty, low, medium, and high are configurable
 - Automatically selects the best available signal source:
-  1. `RQly`
-  2. Average of `RSSI1` and `RSSI2`
-  3. `RSSI`
+  1. `**RQly**`
+  2. Average of `**1RSS**` and `**2RSS**`
+  3. `**RSSI**`
 
 **Options**:
 
@@ -38,8 +38,8 @@ It combines **RQly** and RSSI into a single visual indicator.
 A graphical representation of your transmitter or receiver battery status.  
 It can display either:
 
-- **TX battery voltage** (`tx-voltage`) – default
-- **RX battery voltage** (`RxBt`)
+- **TX battery voltage** (`**tx-voltage**`) – default
+- **RX battery voltage** (`**RxBt**`)
 
 **Options**:
 
