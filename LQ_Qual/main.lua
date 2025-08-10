@@ -38,7 +38,7 @@ local function getBestRSSI()
 end
 
 local function getSignalValue()
-  local tq = getValue("TQly")
+  local tq = getValue("RQly")
   local rssiNorm = getBestRSSI()
   if tq and rssiNorm then
     local tqClamped = clampPercent(tq)
