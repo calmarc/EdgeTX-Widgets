@@ -7,8 +7,6 @@ local options = {
   { "High", COLOR, lcd.RGB(0, 255, 0) }        -- 90–100%
 }
 
-local COLOR_BASE = 200
-
 local function clampPercent(value)
   value = tonumber(value) or 0
   return math.min(100, math.max(0, math.floor(value)))
@@ -77,10 +75,8 @@ local function drawBars(x, y, w, h, percent, opts)
     local barY = y + h - barHeight
 
     if i <= filledBars then
-      lcd.setColor(COLOR_BASE + i, fillColor)
-      lcd.drawFilledRectangle(barX, barY, barWidth, barHeight, COLOR_BASE + i)
+      lcd.drawFilledRectangle(barX, barY, barWidth, barHeight, fillColor)
     else
-      -- Direkt Farbe setzen, kein Slot, damit wirklich dunkel
       lcd.drawFilledRectangle(barX, barY, barWidth, barHeight, lcd.RGB(5, 5, 5))
     end
   end
@@ -88,8 +84,8 @@ end
 
 local function drawPercentText(x, y, percent, opts)
   local text = string.format("%d", percent)
-  lcd.drawText(x+1, y+1, text, MIDSIZE + opts.Shadow)
-  lcd.drawText(x-1, y-1, text, MIDSIZE + opts.Text)
+  lcd.drawText(x+1, y+1, text, opts.Shadow)
+  lcd.drawText(x-1, y-1, text, opts.Text)
 end
 
 local function refresh(widget)
