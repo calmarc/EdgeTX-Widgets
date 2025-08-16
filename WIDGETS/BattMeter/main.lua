@@ -92,7 +92,7 @@ local function drawBattery(frameX, frameY, frameW, frameH, voltage, percent, col
   end
 
   -- Schatten
-  lcd.drawText(textX + 1, textY + 1, numText, textFlags + opts.Shadow)
+  lcd.drawText(textX + 2, textY + 2, numText, textFlags + opts.Shadow)
   -- Text
   lcd.drawText(textX, textY, numText, textFlags + opts.Text)
 
