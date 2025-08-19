@@ -6,8 +6,8 @@
 -- (at your option) any later version.
 
 local options = {
-  { "tx_voltage", BOOL, 1 },
-  { "Cells", VALUE, 2 },
+  { "tx_voltage__RxBt", BOOL, 0 },
+  { "Cells", VALUE, 2, 1, 8 },
   { "PerCell", BOOL, 1 },
   { "Text", COLOR, lcd.RGB(255, 255, 255) },
   { "Shadow", COLOR, lcd.RGB(80, 80, 80) },
@@ -118,7 +118,7 @@ local function refresh(widget)
 
   -- Quelle auswählen
   local rawVoltage
-  if opts.tx_voltage == 1 then
+  if opts.tx_voltage__RxBt == 0 then
     rawVoltage = getValue("tx-voltage") or 0
   else
     rawVoltage = getValue("RxBt") or 0
