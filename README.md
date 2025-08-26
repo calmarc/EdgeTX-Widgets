@@ -2,8 +2,6 @@
 
 Widgets for EdgeTX (2.10.2 or similar).
 
-
-
 ## Screenshot
 
 ![Screenshot](images/screenshot.png)
