@@ -1,5 +1,12 @@
 # EdgeTX Widgets: LinkMeter & BattMeter
 
+
+
+
+
+
+
+
 Widgets for EdgeTX (2.10.2 or similar).
 
 ## Screenshot
