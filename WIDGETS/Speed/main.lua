@@ -5,7 +5,7 @@
 local name = "Speed"
 
 local options = {
-    { "Color", COLOR, lcd.RGB(30, 30, 30) }
+    { "Color", COLOR, lcd.RGB(130, 230, 30) }
 }
 
 local MAX_VSPD = 50        -- m/s
@@ -14,7 +14,7 @@ local SMOOTH_SECONDS = 3   -- Sekunden Glättung
 -- Runs once when the widget instance is created
 local function create(zone, options)
     local widget = {
-        zone = zone or { x=0, y=0, w=50, h=20 },
+        zone = zone,
         options = options,
         lastAlt = nil,
         lastTime = nil,
