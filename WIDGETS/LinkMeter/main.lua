@@ -62,9 +62,8 @@ local function getSignalValue()
   end
 end
 
-local function drawBars(x, y, w, h, percent, opts)
-  local bars = opts.BarCount
---  local bars = 10
+local function drawBars(x, y, w, h, percent, widget)
+  local bars = widget.options.BarCount
   local gap = 1
   local barWidth = math.floor((w - (bars - 1) * gap) / bars)
   local maxBarHeight = h - 4
@@ -75,11 +74,11 @@ local function drawBars(x, y, w, h, percent, opts)
 
   local fillColor
   if percent < 80 then
-    fillColor = opts.Low
+    fillColor = widget.options.Low
   elseif percent < 90 then
-    fillColor = opts.Medium
+    fillColor = widget.options.Medium
   else
-    fillColor = opts.High
+    fillColor = widget.options.High
   end
 
   local lastHeight = 0
@@ -96,24 +95,19 @@ local function drawBars(x, y, w, h, percent, opts)
     if i <= filledBars then
       lcd.drawFilledRectangle(barX, barY, barWidth, barHeight, fillColor)
     else
-      lcd.drawFilledRectangle(barX, barY, barWidth, barHeight, opts.BarColor)
+      lcd.drawFilledRectangle(barX, barY, barWidth, barHeight, widget.options.BarColor)
     end
   end
   return barWidth
 end
 
-local function drawPercentText(x, y, percent, opts)
+local function drawPercentText(x, y, percent, widget)
   local text = string.format("%d", percent)
-  lcd.drawText(x+1, y+1, text, opts.Shadow)
-  lcd.drawText(x-1, y-1, text, opts.Text)
+  lcd.drawText(x+1, y+1, text, widget.options.Shadow)
+  lcd.drawText(x-1, y-1, text, widget.options.Text)
 end
 
 local function refresh(widget)
-  local opts = {}
-  for _, def in ipairs(options) do
-    opts[def[1]] = widget.options[def[1]]
-  end
-
   local percent = clampPercent(getSignalValue())
 
   local x = widget.zone.x or 0
@@ -124,10 +118,10 @@ local function refresh(widget)
   -- Alles leicht nach oben verschieben
   y = y - 2
 
-  drawBars(x, y, w, h, percent, opts)
+  drawBars(x, y, w, h, percent, widget)
 
-  if opts.ShowPercent == 1 then
-    drawPercentText(x , y, percent, opts)
+  if widget.options.ShowPercent == 1 then
+    drawPercentText(x, y, percent, widget)
   end
 end
 
