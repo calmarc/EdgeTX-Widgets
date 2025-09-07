@@ -103,13 +103,13 @@ local function drawBattery(frameX, frameY, frameW, frameH, voltage, percent, col
 end
 
 -- Widget erzeugen
-local function create(zone, _options)
-  return { zone = zone, options = _options }
+local function create(zone, options)
+  return { zone = zone or { x=0, y=0, w=100, h=30 }, options = options }
 end
 
 -- Widget aktualisieren
-local function update(widget, _options)
-  widget.options = _options
+local function update(widget, options)
+  widget.options = options
 end
 
 -- Widget zeichnen / refresh

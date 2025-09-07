@@ -110,10 +110,10 @@ end
 local function refresh(widget)
   local percent = clampPercent(getSignalValue())
 
-  local x = widget.zone.x or 0
-  local y = widget.zone.y or 0
-  local w = widget.zone.w or 100
-  local h = widget.zone.h or 40
+  local x = (widget.zone and widget.zone.x) or 0
+  local y = (widget.zone and widget.zone.y) or 0
+  local w = (widget.zone and widget.zone.w) or 100
+  local h = (widget.zone and widget.zone.h) or 40
 
   -- Alles leicht nach oben verschieben
   y = y - 2
@@ -128,7 +128,11 @@ end
 return {
   name = "LinkMeter",
   options = options,
-  create = function(zone, options) return { zone = zone, options = options } end,
-  update = function(widget, options) widget.options = options end,
+  create = function(zone, options)
+      return { zone = zone or {x=0,y=0,w=100,h=40}, options = options }
+  end,
+  update = function(widget, options)
+      widget.options = options
+  end,
   refresh = refresh
 }

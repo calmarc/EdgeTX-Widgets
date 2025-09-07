@@ -1,56 +1,66 @@
 -- /WIDGETS/Speed/main.lua
 -- Speed-Widget: GSpd + geglättete Vertikalgeschwindigkeit
--- Stabil, Farboptionen, EdgeTX 2.11.x
+-- EdgeTX 2.11.x, keine globalen Variablen
+
+local name = "Speed"
 
 local options = {
-  { "Color", COLOR, lcd.RGB(30, 30, 30) },
+    { "Color", COLOR, lcd.RGB(30, 30, 30) }
 }
 
-local lastAlt
-local lastTime
-local lastCalcSpd = 0
-local vspdBuffer = {}
-local MAX_VSPD = 50 -- m/s
-local SMOOTH_SECONDS = 3 -- Sekunden Glättung
+local MAX_VSPD = 50        -- m/s
+local SMOOTH_SECONDS = 3   -- Sekunden Glättung
 
-local function create(zone, _options)
-  return { zone = zone, options = _options }
+-- Runs once when the widget instance is created
+local function create(zone, options)
+    local widget = {
+        zone = zone or { x=0, y=0, w=50, h=20 },
+        options = options,
+        lastAlt = nil,
+        lastTime = nil,
+        vspdBuffer = {},
+        lastCalcSpd = 0
+    }
+    return widget
 end
 
-local function update(widget, _options)
-  widget.options = _options
+-- Runs when options are changed from the Widget Settings menu
+local function update(widget, options)
+    widget.options = options
 end
 
-local function refresh(widget)
-
+-- Runs periodically when the widget instance is visible
+local function refresh(widget, event, touchState)
     local gspd = getValue("GSpd") or 0
     local alt  = getValue("Alt")  or 0
     local now = getTime()
     local vspd = 0
 
-    if lastAlt and lastTime then
-        local dt = (now - lastTime) / 100
+    if widget.lastAlt and widget.lastTime then
+        local dt = (now - widget.lastTime) / 100
         if dt > 0.05 then
-            vspd = (alt - lastAlt) / dt
+            vspd = (alt - widget.lastAlt) / dt
             vspd = math.max(math.min(vspd, MAX_VSPD), -MAX_VSPD)
         end
     end
-    lastAlt = alt
-    lastTime = now
+    widget.lastAlt = alt
+    widget.lastTime = now
 
-    -- Ringpuffer für 3-Sekunden-Glättung
-    table.insert(vspdBuffer, 1, {vspd, now})
-    for i=#vspdBuffer,1,-1 do
-        if (now - vspdBuffer[i][2])/100 > SMOOTH_SECONDS then
-            table.remove(vspdBuffer, i)
+    -- Ringpuffer für Glättung
+    table.insert(widget.vspdBuffer, 1, {vspd, now})
+    for i = #widget.vspdBuffer, 1, -1 do
+        if (now - widget.vspdBuffer[i][2])/100 > SMOOTH_SECONDS then
+            table.remove(widget.vspdBuffer, i)
         end
     end
 
     local sum = 0
-    for i=1,#vspdBuffer do sum = sum + vspdBuffer[i][1] end
-    local vspdAvg = (#vspdBuffer>0) and (sum/#vspdBuffer) or 0
+    for i = 1, #widget.vspdBuffer do
+        sum = sum + widget.vspdBuffer[i][1]
+    end
+    local vspdAvg = (#widget.vspdBuffer > 0) and (sum / #widget.vspdBuffer) or 0
 
-    lastCalcSpd = math.sqrt(gspd^2 + (vspdAvg*3.6)^2)
+    widget.lastCalcSpd = math.sqrt(gspd^2 + (vspdAvg*3.6)^2)
 
     -- Label oben links
     lcd.drawText(widget.zone.x + 2, widget.zone.y + 2, "Speed", SMLSIZE + widget.options.Color)
@@ -58,14 +68,20 @@ local function refresh(widget)
     -- Hauptwert zentriert
     lcd.drawText(widget.zone.x + widget.zone.w/2,
                  widget.zone.y + widget.zone.h/2 - 10,
-                 string.format("%.1f km/h", lastCalcSpd),
+                 string.format("%.1f km/h", widget.lastCalcSpd),
                  DBLSIZE + CENTER + widget.options.Color)
 end
 
+-- Optional: Runs periodically when widget is not visible
+local function background(widget)
+    -- nichts nötig
+end
+
 return {
-    name = "Speed",
+    name = name,
     options = options,
     create = create,
     update = update,
-    refresh = refresh
+    refresh = refresh,
+    background = background
 }
