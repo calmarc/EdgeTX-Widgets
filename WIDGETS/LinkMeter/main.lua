@@ -1,64 +1,56 @@
+-- /WIDGETS/LinkMeter/main.lua
 -- LinkMeter Widget
--- Copyright (C) 2025 Calari and ChatGPT
--- This program is free software: you can redistribute it and/or modify
--- it under the terms of the GNU General Public License as published by
--- the Free Software Foundation, either version 3 of the License, or
--- (at your option) any later version.
+-- Copyright (C) 2025 Calari + Grok
 
 local options = {
-  { "ShowPercent", BOOL, 1 },                           -- Prozentwert anzeigen
-  { "Text", COLOR, lcd.RGB(255, 255, 255) },            -- Textfarbe
-  { "Shadow", COLOR, lcd.RGB(85, 85, 85) },             -- Schattentextfarbe
-  { "BarCount", VALUE, 10, 4, 22 },                     -- Anzahl Balken
-  { "BarColor", COLOR, lcd.RGB(30, 30, 30) },           -- Leere Balken
-  { "Low", COLOR, lcd.RGB(255, 0, 0) },                 -- < 80%
-  { "Medium", COLOR, lcd.RGB(255, 165, 0) },            -- 80–89%
-  { "High", COLOR, lcd.RGB(0, 255, 0) }                 -- >= 90%
+  { "ShowPercent", BOOL, 1 },           -- Prozentwert anzeigen
+  { "Text",        COLOR, lcd.RGB(255, 255, 255) },
+  { "Shadow",      COLOR, lcd.RGB(85, 85, 85) },
+  { "BarCount",    VALUE, 10, 4, 22 },
+  { "BarColor",    COLOR, lcd.RGB(30, 30, 30) },   -- Leere Balken
+  { "Low",         COLOR, lcd.RGB(255, 0, 0) },    -- < 80%
+  { "Medium",      COLOR, lcd.RGB(255, 165, 0) },  -- 80-89%
+  { "High",        COLOR, lcd.RGB(0, 255, 0) }     -- >= 90%
 }
 
-local WEIGHT_RQ = 0.8
+local WEIGHT_RQ   = 0.8
 local WEIGHT_RSSI = 0.2
 
 local function clampPercent(value)
   value = tonumber(value) or 0
-  return math.min(100, math.max(0, math.floor(value)))
+  return math.max(0, math.min(100, math.floor(value)))
 end
 
 local function normalizeRSSI(rssi)
-  if not rssi then return 0 end
-  if rssi <= -110 then return 0 end
+  if not rssi or rssi <= -110 then return 0 end
   if rssi >= -50 then return 100 end
   local x = (rssi + 110) / 60
-  local curved = x ^ 1.5
-  return math.floor(curved * 100 + 0.5)
+  return math.floor(x ^ 1.5 * 100 + 0.5)
 end
 
 local function getBestRSSI()
   local r1 = getValue("1RSS")
   local r2 = getValue("2RSS")
   local r  = getValue("RSSI")
+  
   local best = nil
   if r1 and r1 ~= 0 then best = r1 end
   if r2 and r2 ~= 0 and (not best or r2 > best) then best = r2 end
-  if r and r ~= 0 and (not best or r > best) then best = r end
-  if best then
-    return normalizeRSSI(best)
-  end
-  return nil
+  if r  and r  ~= 0 and (not best or r  > best) then best = r  end
+
+  return best and normalizeRSSI(best) or 0
 end
 
 local function getSignalValue()
   local tq = getValue("RQly")
   local rssiNorm = getBestRSSI()
+
   if tq and rssiNorm then
-    local tqClamped = clampPercent(tq)
-    return math.floor(WEIGHT_RQ * tqClamped + WEIGHT_RSSI * rssiNorm + 0.5)
+    return math.floor(WEIGHT_RQ * clampPercent(tq) + WEIGHT_RSSI * rssiNorm + 0.5)
   elseif tq then
     return clampPercent(tq)
-  elseif rssiNorm then
-    return rssiNorm
   else
-    return 0
+    return rssiNorm
   end
 end
 
@@ -85,7 +77,7 @@ local function drawBars(x, y, w, h, percent, widget)
   for i = 1, bars do
     local factor = (i - 1) / (bars - 1)
     local rawHeight = minHeight + (maxBarHeight - minHeight) * (factor ^ growthFactor)
-    local barHeight = math.max(lastHeight + 1, math.ceil(rawHeight)) -- garantiert +1 pro Balken
+    local barHeight = math.max(lastHeight + 1, math.ceil(rawHeight))
     if barHeight > maxBarHeight then barHeight = maxBarHeight end
     lastHeight = barHeight
 
@@ -98,30 +90,29 @@ local function drawBars(x, y, w, h, percent, widget)
       lcd.drawFilledRectangle(barX, barY, barWidth, barHeight, widget.options.BarColor)
     end
   end
-  return barWidth
 end
 
 local function drawPercentText(x, y, percent, widget)
-  local text = string.format("%d", percent)
-  lcd.drawText(x+1, y+1, text, widget.options.Shadow)
-  lcd.drawText(x-1, y-1, text, widget.options.Text)
+  local text = string.format("%d%%", percent)
+  lcd.drawText(x + 1, y + 1, text, widget.options.Shadow)
+  lcd.drawText(x,     y,     text, widget.options.Text)
 end
 
 local function refresh(widget)
   local percent = clampPercent(getSignalValue())
 
-  local x = (widget.zone and widget.zone.x) or 0
-  local y = (widget.zone and widget.zone.y) or 0
-  local w = (widget.zone and widget.zone.w) or 100
-  local h = (widget.zone and widget.zone.h) or 40
+  local zone = widget.zone or {}
+  local x = tonumber(zone.x) or 0
+  local y = tonumber(zone.y) or 0
+  local w = tonumber(zone.w) or 100
+  local h = tonumber(zone.h) or 40
 
-  -- Alles leicht nach oben verschieben
-  y = y - 2
+  y = y - 2   -- leichte Anpassung wie vorher
 
   drawBars(x, y, w, h, percent, widget)
 
   if widget.options.ShowPercent == 1 then
-    drawPercentText(x, y, percent, widget)
+    drawPercentText(x + 4, y + 2, percent, widget)   -- etwas besser positioniert
   end
 end
 
@@ -129,10 +120,10 @@ return {
   name = "LinkMeter",
   options = options,
   create = function(zone, options)
-      return { zone = zone or {x=0,y=0,w=100,h=40}, options = options }
+    return { zone = zone, options = options }
   end,
   update = function(widget, options)
-      widget.options = options
+    widget.options = options
   end,
   refresh = refresh
 }
