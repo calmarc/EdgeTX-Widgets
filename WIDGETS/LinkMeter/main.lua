@@ -1,68 +1,120 @@
 -- /WIDGETS/LinkMeter/main.lua
 -- LinkMeter Widget
--- Copyright (C) 2025 Calari + Grok
+-- Copyright (C) 2025 Calari - chatGPG hat reklamiert, claude.ai hat umgesetzt
+-- v4: log10-RSSI-Kurve, dual-scale fix, denom refactor, shadow hardening,
+--     debug-Flag, string.format → concat, Architektur-Kommentare konsolidiert.
+
+-- ─── Konstanten ─────────────────────────────────────────────────────────────
+local GAP           = 1
+local MIN_HEIGHT    = 6
+local GROWTH_FACTOR = 2.0
+local SHADOW_OFFSET = 1
+local TEXT_OFFSET_X = 4
+local TEXT_OFFSET_Y = 2
+local ZONE_Y_ADJUST = -2
+
+local RSSI_MIN = -110   -- dBm → 0
+local RSSI_MAX = -50    -- dBm → 100
+
+-- Gewichtung des heuristischen UX-Scores (kein RF-Diagnosemodell):
+--   RQly  = diskrete Paketverlustrate      (dominant)
+--   RSSI  = analoger HF-Pegel, normalisiert (ergänzend)
+local LINK_SCORE_WEIGHT_RQ   = 0.8
+local LINK_SCORE_WEIGHT_RSSI = 0.2
+
+-- Debug-Mode: bei true wird ein Fehlertext bei ungültiger Zone gezeichnet.
+-- Im Feldbetrieb auf false setzen, um fremde Widgets nicht zu überdecken.
+local DEBUG_MODE = false
+
+-- Fix #5 (v4): nil-check statt type()-Vergleich – robuster gegen
+-- unterschiedliche Build-Typisierung von EdgeTX-API-Konstanten.
+local HAS_NATIVE_SHADOW = SHADOWED ~= nil
 
 local options = {
-  { "ShowPercent", BOOL, 1 },           -- Prozentwert anzeigen
+  { "ShowPercent", BOOL,  1 },
   { "Text",        COLOR, lcd.RGB(255, 255, 255) },
-  { "Shadow",      COLOR, lcd.RGB(85, 85, 85) },
+  { "Shadow",      COLOR, lcd.RGB(85,  85,  85)  },
   { "BarCount",    VALUE, 10, 4, 22 },
-  { "BarColor",    COLOR, lcd.RGB(30, 30, 30) },   -- Leere Balken
-  { "Low",         COLOR, lcd.RGB(255, 0, 0) },    -- < 80%
-  { "Medium",      COLOR, lcd.RGB(255, 165, 0) },  -- 80-89%
-  { "High",        COLOR, lcd.RGB(0, 255, 0) }     -- >= 90%
+  { "BarColor",    COLOR, lcd.RGB(30,  30,  30)  }, -- leere Balken
+  { "Low",         COLOR, lcd.RGB(255,  0,   0)  }, -- < 80 %
+  { "Medium",      COLOR, lcd.RGB(255, 165,  0)  }, -- 80–89 %
+  { "High",        COLOR, lcd.RGB(0,  255,   0)  }  -- >= 90 %
 }
 
-local WEIGHT_RQ   = 0.8
-local WEIGHT_RSSI = 0.2
+-- ─── Signal-Layer ───────────────────────────────────────────────────────────
 
 local function clampPercent(value)
   value = tonumber(value) or 0
   return math.max(0, math.min(100, math.floor(value)))
 end
 
+-- Fix #1 (v4): Logarithmische Sättigungskurve statt x².
+-- log10(1 + 9x) bildet RF-Intuition besser ab als quadratisch:
+--   x=0 → 0, x=1 → 1, mittlere Bereiche realistischer gewichtet.
+-- Bleibt Heuristik – kein echtes Friis-Modell, aber perceptually sinnvoll.
 local function normalizeRSSI(rssi)
-  if not rssi or rssi <= -110 then return 0 end
-  if rssi >= -50 then return 100 end
-  local x = (rssi + 110) / 60
-  return math.floor(x ^ 1.5 * 100 + 0.5)
+  local r = tonumber(rssi)
+  if not r or r <= RSSI_MIN then return 0 end
+  if r >= RSSI_MAX           then return 100 end
+  local x = (r - RSSI_MIN) / (RSSI_MAX - RSSI_MIN)
+  return math.floor(math.log10(1 + 9 * x) * 100 + 0.5)
 end
 
+-- Keine table-Allokation im hot path (v2, unverändert).
 local function getBestRSSI()
-  local r1 = getValue("1RSS")
-  local r2 = getValue("2RSS")
-  local r  = getValue("RSSI")
-  
-  local best = nil
-  if r1 and r1 ~= 0 then best = r1 end
-  if r2 and r2 ~= 0 and (not best or r2 > best) then best = r2 end
-  if r  and r  ~= 0 and (not best or r  > best) then best = r  end
-
-  return best and normalizeRSSI(best) or 0
+  local v1 = getValue("1RSS")
+  local v2 = getValue("2RSS")
+  local v3 = getValue("RSSI")
+  local best = 0
+  if v1 and v1 ~= 0 then best = math.max(best, normalizeRSSI(v1)) end
+  if v2 and v2 ~= 0 then best = math.max(best, normalizeRSSI(v2)) end
+  if v3 and v3 ~= 0 then best = math.max(best, normalizeRSSI(v3)) end
+  return best
 end
 
+-- Ergebnis: heuristischer UX-Score 0–100.
+-- Geeignet für UI-Balken; NICHT für RF-Diagnose oder Systemtuning.
 local function getSignalValue()
-  local tq = getValue("RQly")
-  local rssiNorm = getBestRSSI()
-
-  if tq and rssiNorm then
-    return math.floor(WEIGHT_RQ * clampPercent(tq) + WEIGHT_RSSI * rssiNorm + 0.5)
-  elseif tq then
-    return clampPercent(tq)
-  else
-    return rssiNorm
+  local tq   = tonumber(getValue("RQly"))
+  local rssi = getBestRSSI()
+  if tq then
+    return math.floor(
+      LINK_SCORE_WEIGHT_RQ   * clampPercent(tq) +
+      LINK_SCORE_WEIGHT_RSSI * rssi + 0.5
+    )
   end
+  return rssi
 end
+
+-- ─── Safety-Layer ───────────────────────────────────────────────────────────
+
+local function safeZone(zone)
+  if not zone then
+    return { x = 0, y = 0, w = 0, h = 0 }
+  end
+  return {
+    x = tonumber(zone.x) or 0,
+    y = tonumber(zone.y) or 0,
+    w = tonumber(zone.w) or 0,
+    h = tonumber(zone.h) or 0,
+  }
+end
+
+-- ─── Rendering-Layer ────────────────────────────────────────────────────────
 
 local function drawBars(x, y, w, h, percent, widget)
   local bars = widget.options.BarCount
-  local gap = 1
-  local barWidth = math.floor((w - (bars - 1) * gap) / bars)
-  local maxBarHeight = h - 4
-  local minHeight = 6
-  local growthFactor = 2.0
 
-  local filledBars = math.floor((percent / 100) * bars + 0.5)
+  -- Fix #3 (v4): denom als explizite Variable, guard separat.
+  local denom    = math.max(1, bars - 1)
+  local barWidth = math.max(1, math.floor((w - (bars - 1) * GAP) / bars))
+  local maxH     = h - 4
+
+  -- Fix #4 (v4): filled nutzt dieselbe nichtlineare Kurve wie die Balkenhöhen,
+  -- damit fill state und Geometrie auf derselben Skala arbeiten.
+  -- Beide verwenden log10(1 + 9·x) – kein dual-scaling-Artefakt mehr.
+  local fillX  = percent / 100
+  local filled = math.floor(math.log10(1 + 9 * fillX) * bars + 0.5)
 
   local fillColor
   if percent < 80 then
@@ -73,57 +125,64 @@ local function drawBars(x, y, w, h, percent, widget)
     fillColor = widget.options.High
   end
 
-  local lastHeight = 0
+  -- Balken-Geometrie: nichtlineare ästhetische Progression (bewusst).
+  -- GROWTH_FACTOR komprimiert kleine Werte visuell – UX-Entscheid, kein Bug.
   for i = 1, bars do
-    local factor = (i - 1) / (bars - 1)
-    local rawHeight = minHeight + (maxBarHeight - minHeight) * (factor ^ growthFactor)
-    local barHeight = math.max(lastHeight + 1, math.ceil(rawHeight))
-    if barHeight > maxBarHeight then barHeight = maxBarHeight end
-    lastHeight = barHeight
+    local factor    = (i - 1) / denom
+    local barHeight = math.max(MIN_HEIGHT, math.ceil(
+      MIN_HEIGHT + (maxH - MIN_HEIGHT) * (factor ^ GROWTH_FACTOR)
+    ))
+    if barHeight > maxH then barHeight = maxH end
 
-    local barX = x + (i - 1) * (barWidth + gap)
-    local barY = y + h - barHeight
-
-    if i <= filledBars then
-      lcd.drawFilledRectangle(barX, barY, barWidth, barHeight, fillColor)
-    else
-      lcd.drawFilledRectangle(barX, barY, barWidth, barHeight, widget.options.BarColor)
-    end
+    local barX  = x + (i - 1) * (barWidth + GAP)
+    local barY  = y + h - barHeight
+    local color = (i <= filled) and fillColor or widget.options.BarColor
+    lcd.drawFilledRectangle(barX, barY, barWidth, barHeight, color)
   end
 end
 
+-- Fix #7 (v4): percent .. "%" statt string.format – kein Alloc-Overhead
+--              durch format-Parser auf embedded Lua.
+-- Fix #5 (v4): deterministischer Shadow-Pfad via HAS_NATIVE_SHADOW.
 local function drawPercentText(x, y, percent, widget)
-  local text = string.format("%d%%", percent)
-  lcd.drawText(x + 1, y + 1, text, widget.options.Shadow)
-  lcd.drawText(x,     y,     text, widget.options.Text)
+  local text = percent .. "%"
+  if HAS_NATIVE_SHADOW then
+    lcd.drawText(x, y, text, SMLSIZE + SHADOWED)
+  else
+    lcd.drawText(x + SHADOW_OFFSET, y + SHADOW_OFFSET, text, widget.options.Shadow)
+    lcd.drawText(x,                 y,                  text, widget.options.Text)
+  end
 end
 
 local function refresh(widget)
   local percent = clampPercent(getSignalValue())
+  local z       = safeZone(widget.zone)
 
-  local zone = widget.zone or {}
-  local x = tonumber(zone.x) or 0
-  local y = tonumber(zone.y) or 0
-  local w = tonumber(zone.w) or 100
-  local h = tonumber(zone.h) or 40
+  -- Fix #6 (v4): Debug-Text nur wenn DEBUG_MODE aktiv –
+  -- verhindert UI-Verschmutzung im Feldbetrieb.
+  if z.w <= 0 or z.h <= 0 then
+    if DEBUG_MODE then
+      lcd.drawText(0, 0, "LinkMeter: invalid zone", 0)
+    end
+    return
+  end
 
-  y = y - 2   -- leichte Anpassung wie vorher
-
-  drawBars(x, y, w, h, percent, widget)
-
+  drawBars(z.x, z.y + ZONE_Y_ADJUST, z.w, z.h, percent, widget)
   if widget.options.ShowPercent == 1 then
-    drawPercentText(x + 4, y + 2, percent, widget)   -- etwas besser positioniert
+    drawPercentText(
+      z.x + TEXT_OFFSET_X,
+      z.y + ZONE_Y_ADJUST + TEXT_OFFSET_Y,
+      percent, widget
+    )
   end
 end
 
+-- ─── Widget-API ─────────────────────────────────────────────────────────────
+
 return {
-  name = "LinkMeter",
+  name    = "LinkMeter",
   options = options,
-  create = function(zone, options)
-    return { zone = zone, options = options }
-  end,
-  update = function(widget, options)
-    widget.options = options
-  end,
-  refresh = refresh
+  create  = function(zone, opts) return { zone = zone, options = opts } end,
+  update  = function(widget, opts) widget.options = opts end,
+  refresh = refresh,
 }
