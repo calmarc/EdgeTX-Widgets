@@ -6,8 +6,16 @@ local DEBUG = true  -- auf false setzen wenn alles läuft
 
 local function dbg(msg) if DEBUG then print("[BattMeter] " .. msg) end end
 
+-- Batterie-Typen: { minV, maxV, thFull, thHigh, thMedium, thLow }
+local BATT_TYPES = {
+  [1] = { minV = 3.20, maxV = 4.20, thFull = 80, thHigh = 60, thMedium = 40, thLow = 20 },  -- Li-Po
+  [2] = { minV = 3.00, maxV = 4.20, thFull = 80, thHigh = 60, thMedium = 40, thLow = 20 },  -- Li-Ion
+  [3] = { minV = 2.80, maxV = 3.60, thFull = 80, thHigh = 60, thMedium = 40, thLow = 20 },  -- LiFe
+}
+
 local options = {
-  { "Battery-Sensor", CHOICE, 1, {"tx-voltage", "RxBt"} },  -- 1 = tx-voltage, 2 = RxBt
+  { "Battery-Sensor", CHOICE, 1, {"tx-voltage", "RxBt"} },      -- 1 = tx-voltage, 2 = RxBt
+  { "Battery-Type",   CHOICE, 1, {"Li-Po", "Li-Ion", "LiFe"} }, -- 1 / 2 / 3
   { "Cells",          VALUE,  2, 1, 8 },
   { "PerCell",        BOOL,   1 },
   { "Text",           COLOR,  lcd.RGB(255, 255, 255) },
@@ -16,17 +24,18 @@ local options = {
   { "Full",           COLOR,  lcd.RGB(0, 170, 0) },
   { "High",           COLOR,  lcd.RGB(80, 170, 0) },
   { "Medium",         COLOR,  lcd.RGB(150, 150, 0) },
-  { "Low",            COLOR,  lcd.RGB(255, 165, 0) }
+  { "Low",            COLOR,  lcd.RGB(255, 165, 0) },
+  { "Critical",       COLOR,  lcd.RGB(255, 0, 0) }
 }
 
 local MIN_FILL = 8
 
-local function getBatteryColor(percent, widget)
-  if percent >= 80 then return widget.options.Full end
-  if percent >= 60 then return widget.options.High end
-  if percent >= 40 then return widget.options.Medium end
-  if percent >= 20 then return widget.options.Low end
-  return widget.options.BatColor
+local function getBatteryColor(percent, btype, widget)
+  if percent >= btype.thFull   then return widget.options.Full     end
+  if percent >= btype.thHigh   then return widget.options.High     end
+  if percent >= btype.thMedium then return widget.options.Medium   end
+  if percent >= btype.thLow    then return widget.options.Low      end
+  return widget.options.Critical
 end
 
 local function getVoltagePercent(voltage, minV, maxV)
@@ -86,13 +95,18 @@ end
 local function refresh(widget)
   local opts   = widget.options
   local sensor = opts["Battery-Sensor"]
+  local btype  = BATT_TYPES[opts["Battery-Type"]] or BATT_TYPES[1]
+  local cells  = math.max(1, opts.Cells or 1)  -- minimum 1, nie division durch 0
 
   local x = tonumber(widget.zone.x) or 0
   local y = tonumber(widget.zone.y) or 0
   local w = tonumber(widget.zone.w) or 100
   local h = tonumber(widget.zone.h) or 30
 
-  dbg("sensor-index=" .. tostring(sensor))
+  dbg("sensor-index=" .. tostring(sensor) ..
+      "  battery-type=" .. tostring(opts["Battery-Type"]) ..
+      "  cells=" .. tostring(cells) ..
+      "  minV=" .. btype.minV .. "  maxV=" .. btype.maxV)
 
   if sensor == nil or (sensor ~= 1 and sensor ~= 2) then
     dbg("ERROR: ungültiger sensor-index!")
@@ -104,7 +118,7 @@ local function refresh(widget)
   local rawVoltage = getValue(sensorName)
 
   dbg("sensorName=" .. sensorName .. "  rawVoltage=" .. tostring(rawVoltage))
-  dbg("PerCell=" .. tostring(opts.PerCell) .. "  Cells=" .. tostring(opts.Cells))
+  dbg("PerCell=" .. tostring(opts.PerCell) .. "  Cells=" .. tostring(cells))
 
   if rawVoltage == nil or type(rawVoltage) ~= "number" then
     dbg("ERROR: kein gültiger Wert von sensor '" .. sensorName .. "'")
@@ -113,17 +127,17 @@ local function refresh(widget)
   end
 
   local voltage    = rawVoltage
-  local minV, maxV = 3.2, 4.25
+  local minV, maxV = btype.minV, btype.maxV
 
   if opts.PerCell == 1 then
-    voltage = rawVoltage / opts.Cells
+    voltage = rawVoltage / cells
   else
-    minV = minV * opts.Cells
-    maxV = maxV * opts.Cells
+    minV = minV * cells
+    maxV = maxV * cells
   end
 
   local percent = getVoltagePercent(voltage, minV, maxV)
-  local color   = getBatteryColor(percent, widget)
+  local color   = getBatteryColor(percent, btype, widget)
 
   dbg("voltage=" .. string.format("%.2f", voltage) ..
       "V  minV=" .. string.format("%.2f", minV) ..
