@@ -1,20 +1,75 @@
 -- /WIDGETS/BattMeter/main.lua
 -- BattMeter Widget
--- Copyright (C) 2025 Calari + Grok
+-- Copyright (C) 2025 Calari
 
-local DEBUG = true  -- auf false setzen wenn alles läuft
+local DEBUG = false  -- auf true setzen zum debuggen
 
-local function dbg(msg) if DEBUG then print("[BattMeter] " .. msg) end end
+-- Debug mit Throttle: max 1x pro 500ms (getTime = 10ms Ticks)
+local lastDebug = 0
+local function dbg(msg)
+  if not DEBUG then return end
+  local now = getTime()
+  if now - lastDebug > 50 then
+    print("[BattMeter] " .. msg)
+    lastDebug = now
+  end
+end
 
--- Batterie-Typen: { minV, maxV, thFull, thHigh, thMedium, thLow }
-local BATT_TYPES = {
-  [1] = { minV = 3.20, maxV = 4.20, thFull = 80, thHigh = 60, thMedium = 40, thLow = 20 },  -- Li-Po
-  [2] = { minV = 3.00, maxV = 4.20, thFull = 80, thHigh = 60, thMedium = 40, thLow = 20 },  -- Li-Ion
-  [3] = { minV = 2.80, maxV = 3.60, thFull = 80, thHigh = 60, thMedium = 40, thLow = 20 },  -- LiFe
+-- Sensor-Map: CHOICE index → sensor name
+local SENSOR_MAP = {
+  [1] = "tx-voltage",
+  [2] = "RxBt"
 }
 
+-- Batterie-Typen: { minV, maxV, state rules }
+-- STATE_RULES: geordnet von hoch nach tief, { threshold%, state }
+local BATT_TYPES = {
+  [1] = {                                          -- Li-Po
+    minV = 3.20, maxV = 4.20,
+    rules = {
+      { threshold = 80, state = "FULL"     },
+      { threshold = 60, state = "HIGH"     },
+      { threshold = 40, state = "MEDIUM"   },
+      { threshold = 20, state = "LOW"      },
+      { threshold =  0, state = "CRITICAL" },
+    }
+  },
+  [2] = {                                          -- Li-Ion
+    minV = 3.00, maxV = 4.20,
+    rules = {
+      { threshold = 80, state = "FULL"     },
+      { threshold = 60, state = "HIGH"     },
+      { threshold = 40, state = "MEDIUM"   },
+      { threshold = 20, state = "LOW"      },
+      { threshold =  0, state = "CRITICAL" },
+    }
+  },
+  [3] = {                                          -- LiFe
+    minV = 2.80, maxV = 3.60,
+    rules = {
+      { threshold = 80, state = "FULL"     },
+      { threshold = 60, state = "HIGH"     },
+      { threshold = 40, state = "MEDIUM"   },
+      { threshold = 20, state = "LOW"      },
+      { threshold =  0, state = "CRITICAL" },
+    }
+  },
+}
+
+-- Font-Profile: kalibriert auf gemessene Zonengrössen
+-- baseline: empirisch ermittelt (h=39 Zone → 40 ergibt korrekte Y-Zentrierung)
+local FONT_PROFILES = {
+  large  = { flags = MIDSIZE + BOLD, baseline = 40 },  -- bodyH >= 35, kalibriert h=39
+  medium = { flags = BOLD,           baseline = 13 },  -- bodyH >= 22
+  small  = { flags = SMLSIZE + BOLD, baseline =  9 },  -- bodyH <  22
+}
+
+-- Smoothing: moving average über N samples
+local SMOOTH_SAMPLES = 5
+local voltageHistory = {}  -- pro widget-instanz via sensorName key
+
 local options = {
-  { "Battery-Sensor", CHOICE, 1, {"tx-voltage", "RxBt"} },      -- 1 = tx-voltage, 2 = RxBt
+  { "Battery-Sensor", CHOICE, 1, {"tx-voltage", "RxBt"} },      -- 1 / 2
   { "Battery-Type",   CHOICE, 1, {"Li-Po", "Li-Ion", "LiFe"} }, -- 1 / 2 / 3
   { "Cells",          VALUE,  2, 1, 8 },
   { "PerCell",        BOOL,   1 },
@@ -28,20 +83,101 @@ local options = {
   { "Critical",       COLOR,  lcd.RGB(255, 0, 0) }
 }
 
-local MIN_FILL = 8
+-- LCD text width helper
+local function textWidth(flags, text)
+  if lcd.getTextWidth then
+    return lcd.getTextWidth(flags, text)
+  else
+    return lcd.sizeText(text, flags)
+  end
+end
 
-local function getBatteryColor(percent, btype, widget)
-  if percent >= btype.thFull   then return widget.options.Full     end
-  if percent >= btype.thHigh   then return widget.options.High     end
-  if percent >= btype.thMedium then return widget.options.Medium   end
-  if percent >= btype.thLow    then return widget.options.Low      end
+-- ─── Smoothing ────────────────────────────────────────────────────────────────
+
+local function smoothVoltage(key, newValue)
+  if not voltageHistory[key] then
+    voltageHistory[key] = {}
+  end
+  local h = voltageHistory[key]
+  table.insert(h, newValue)
+  if #h > SMOOTH_SAMPLES then
+    table.remove(h, 1)
+  end
+  local sum = 0
+  for _, v in ipairs(h) do sum = sum + v end
+  return sum / #h
+end
+
+-- ─── Pipeline: 1) Sensor lesen ───────────────────────────────────────────────
+
+local function readSensor(opts)
+  local sensorName = SENSOR_MAP[opts["Battery-Sensor"]]
+  if not sensorName then
+    return nil, "ungültiger sensor-index: " .. tostring(opts["Battery-Sensor"])
+  end
+  local raw = getValue(sensorName)
+  if raw == nil or type(raw) ~= "number" or raw <= 0 or raw > 60 then
+    return nil, "ungültiger rawVoltage=" .. tostring(raw) .. " von '" .. sensorName .. "'"
+  end
+  local smoothed = smoothVoltage(sensorName, raw)
+  return { name = sensorName, raw = raw, voltage = smoothed }, nil
+end
+
+-- ─── Pipeline: 2) Spannung normalisieren ─────────────────────────────────────
+
+local function normalizeVoltage(voltage, btype, cells, isPerCell)
+  local minV, maxV = btype.minV, btype.maxV
+  if isPerCell then
+    voltage = voltage / cells
+  else
+    minV = minV * cells
+    maxV = maxV * cells
+  end
+  return voltage, minV, maxV
+end
+
+-- ─── Pipeline: 3a) Prozent berechnen ─────────────────────────────────────────
+
+local function computePercent(voltage, minV, maxV)
+  if maxV <= minV or voltage <= 0 then return 0 end
+  local p = ((voltage - minV) / (maxV - minV)) * 100
+  return math.max(0, math.min(100, math.floor(p + 0.5)))
+end
+
+-- ─── Pipeline: 3b) State aus Prozent (table-driven) ──────────────────────────
+
+local function computeStateFromPercent(percent, rules)
+  for _, rule in ipairs(rules) do
+    if percent >= rule.threshold then
+      return rule.state
+    end
+  end
+  return "CRITICAL"
+end
+
+-- ─── Pipeline: 4) Rendern ────────────────────────────────────────────────────
+
+local function getColorForState(state, widget)
+  if state == "FULL"   then return widget.options.Full     end
+  if state == "HIGH"   then return widget.options.High     end
+  if state == "MEDIUM" then return widget.options.Medium   end
+  if state == "LOW"    then return widget.options.Low      end
   return widget.options.Critical
 end
 
-local function getVoltagePercent(voltage, minV, maxV)
-  if maxV <= minV or voltage <= 0 then return 0 end
-  local percent = math.floor(((voltage - minV) / (maxV - minV)) * 100 + 0.5)
-  return math.max(0, math.min(100, percent))
+local function getFontProfile(bodyH)
+  if bodyH >= 35 then return FONT_PROFILES.large  end
+  if bodyH >= 22 then return FONT_PROFILES.medium end
+  return FONT_PROFILES.small
+end
+
+local function drawNoSensor(frameX, frameY, frameW, frameH, widget)
+  local msg   = "No sensor!"
+  local msgW  = textWidth(SMLSIZE, msg)
+  local textX = frameX + math.floor((frameW - msgW) / 2)
+  local textY = frameY + math.floor(frameH / 2) - 8
+  lcd.drawText(textX + 2, textY + 2, msg, SMLSIZE + widget.options.Shadow)
+  lcd.drawText(textX,     textY,     msg, SMLSIZE + lcd.RGB(255, 0, 0))
 end
 
 local function drawBattery(frameX, frameY, frameW, frameH, voltage, percent, color, widget)
@@ -54,35 +190,33 @@ local function drawBattery(frameX, frameY, frameW, frameH, voltage, percent, col
   lcd.drawFilledRectangle(frameX + 1, frameY + 1, bodyW - 2, bodyH - 2, widget.options.BatColor)
 
   -- Pluspol
-  lcd.drawFilledRectangle(frameX + bodyW - 1, frameY + (bodyH - capH) // 2, capW, capH, widget.options.BatColor)
+  lcd.drawFilledRectangle(
+    frameX + bodyW - 1,
+    frameY + math.floor((bodyH - capH) / 2),
+    capW, capH,
+    widget.options.BatColor
+  )
 
-  -- Füllung
-  local fillW = math.max(MIN_FILL, math.floor((bodyW - 6) * percent / 100))
+  -- Füllung: geclampt, kein fake Ladestand
+  local maxFill = bodyW - 6
+  local fillW   = math.max(0, math.min(maxFill, math.floor(maxFill * percent / 100)))
   lcd.drawFilledRectangle(frameX + 3, frameY + 3, fillW, bodyH - 6, color)
 
-  -- Text
-  local textFlags  = (voltage < 10) and (MIDSIZE + BOLD) or BOLD
-  local numText    = string.format("%.1f", voltage)
-  local unitText   = "V"
-  local numWidth   = lcd.getTextWidth and lcd.getTextWidth(textFlags, numText) or lcd.sizeText(numText, textFlags)
-  local unitWidth  = lcd.getTextWidth and lcd.getTextWidth(SMLSIZE, unitText)  or lcd.sizeText(unitText, SMLSIZE)
-  local totalWidth = numWidth + unitWidth
-  local textX      = frameX + (bodyW - totalWidth) // 2
-  local textY      = frameY + (bodyH // 2) - (textFlags & MIDSIZE ~= 0 and 19 or 11)
+  -- Font abhängig von bodyH
+  local font   = getFontProfile(bodyH)
+  local numText  = string.format("%.1f", voltage)
+  local unitText = "V"
+  local numW     = textWidth(font.flags, numText)
+  local unitW    = textWidth(SMLSIZE,    unitText)
+  local textX    = frameX + math.floor((bodyW - numW - unitW) / 2)
+  local textY    = frameY + math.floor((bodyH - font.baseline) / 2)
 
-  lcd.drawText(textX + 2,            textY + 2, numText,  textFlags + widget.options.Shadow)
-  lcd.drawText(textX,                textY,     numText,  textFlags + widget.options.Text)
-  lcd.drawText(textX + numWidth + 2, textY + 4, unitText, SMLSIZE   + widget.options.Text)
+  lcd.drawText(textX + 2,        textY + 2, numText,  font.flags + widget.options.Shadow)
+  lcd.drawText(textX,            textY,     numText,  font.flags + widget.options.Text)
+  lcd.drawText(textX + numW + 2, textY + 2, unitText, SMLSIZE    + widget.options.Text)
 end
 
-local function drawNoSensor(frameX, frameY, frameW, frameH, widget)
-  local msg   = "No sensor!"
-  local msgW  = lcd.getTextWidth and lcd.getTextWidth(SMLSIZE, msg) or lcd.sizeText(msg, SMLSIZE)
-  local textX = frameX + (frameW - msgW) // 2
-  local textY = frameY + (frameH // 2) - 12
-  lcd.drawText(textX + 2, textY + 2, msg, SMLSIZE + widget.options.Shadow)
-  lcd.drawText(textX,     textY,     msg, SMLSIZE + lcd.RGB(255, 0, 0))
-end
+-- ─── Widget Lifecycle ─────────────────────────────────────────────────────────
 
 local function create(zone, options)
   return { zone = zone, options = options }
@@ -93,56 +227,43 @@ local function update(widget, options)
 end
 
 local function refresh(widget)
-  local opts   = widget.options
-  local sensor = opts["Battery-Sensor"]
-  local btype  = BATT_TYPES[opts["Battery-Type"]] or BATT_TYPES[1]
-  local cells  = math.max(1, opts.Cells or 1)  -- minimum 1, nie division durch 0
+  local opts      = widget.options
+  local btype     = BATT_TYPES[opts["Battery-Type"]] or BATT_TYPES[1]
+  local cells     = math.max(1, opts.Cells or 1)
+  local isPerCell = (opts.PerCell == 1)
 
   local x = tonumber(widget.zone.x) or 0
   local y = tonumber(widget.zone.y) or 0
   local w = tonumber(widget.zone.w) or 100
   local h = tonumber(widget.zone.h) or 30
 
-  dbg("sensor-index=" .. tostring(sensor) ..
-      "  battery-type=" .. tostring(opts["Battery-Type"]) ..
-      "  cells=" .. tostring(cells) ..
-      "  minV=" .. btype.minV .. "  maxV=" .. btype.maxV)
-
-  if sensor == nil or (sensor ~= 1 and sensor ~= 2) then
-    dbg("ERROR: ungültiger sensor-index!")
+  -- 1) Sensor lesen + smoothing
+  local sensor, err = readSensor(opts)
+  if not sensor then
+    dbg("ERROR: " .. err)
     drawNoSensor(x, y, w, h, widget)
     return
   end
 
-  local sensorName = (sensor == 1) and "tx-voltage" or "RxBt"
-  local rawVoltage = getValue(sensorName)
+  -- 2) Normalisieren
+  local voltage, minV, maxV = normalizeVoltage(sensor.voltage, btype, cells, isPerCell)
 
-  dbg("sensorName=" .. sensorName .. "  rawVoltage=" .. tostring(rawVoltage))
-  dbg("PerCell=" .. tostring(opts.PerCell) .. "  Cells=" .. tostring(cells))
+  -- 3a) Prozent
+  local percent = computePercent(voltage, minV, maxV)
 
-  if rawVoltage == nil or type(rawVoltage) ~= "number" then
-    dbg("ERROR: kein gültiger Wert von sensor '" .. sensorName .. "'")
-    drawNoSensor(x, y, w, h, widget)
-    return
-  end
+  -- 3b) State (table-driven)
+  local state = computeStateFromPercent(percent, btype.rules)
 
-  local voltage    = rawVoltage
-  local minV, maxV = btype.minV, btype.maxV
+  -- 4) Rendern
+  local color = getColorForState(state, widget)
 
-  if opts.PerCell == 1 then
-    voltage = rawVoltage / cells
-  else
-    minV = minV * cells
-    maxV = maxV * cells
-  end
-
-  local percent = getVoltagePercent(voltage, minV, maxV)
-  local color   = getBatteryColor(percent, btype, widget)
-
-  dbg("voltage=" .. string.format("%.2f", voltage) ..
-      "V  minV=" .. string.format("%.2f", minV) ..
-      "  maxV=" .. string.format("%.2f", maxV) ..
-      "  percent=" .. tostring(percent) .. "%")
+  dbg("zone w=" .. tostring(w) .. " h=" .. tostring(h) ..
+      "  sensor=" .. sensor.name ..
+      "  raw=" .. string.format("%.2f", sensor.raw) ..
+      "V  smoothed=" .. string.format("%.2f", sensor.voltage) ..
+      "V  v=" .. string.format("%.2f", voltage) ..
+      "V  " .. string.format("%.2f", minV) .. "-" .. string.format("%.2f", maxV) ..
+      "  " .. tostring(percent) .. "%  " .. state)
 
   drawBattery(x, y, w, h, voltage, percent, color, widget)
 end
