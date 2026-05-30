@@ -1,19 +1,6 @@
 -- /WIDGETS/BattMeter/main.lua
 -- BattMeter Widget
--- Copyright (C) 2025 Calari
-
-local DEBUG = false  -- auf true setzen zum debuggen
-
--- Debug mit Throttle: max 1x pro 500ms (getTime = 10ms Ticks)
-local lastDebug = 0
-local function dbg(msg)
-  if not DEBUG then return end
-  local now = getTime()
-  if now - lastDebug > 50 then
-    print("[BattMeter] " .. msg)
-    lastDebug = now
-  end
-end
+-- Copyright (C) 2026 Calari
 
 -- Sensor-Map: CHOICE index → sensor name
 local SENSOR_MAP = {
@@ -66,7 +53,7 @@ local FONT_PROFILES = {
 
 -- Smoothing: moving average über N samples
 local SMOOTH_SAMPLES = 5
-local voltageHistory = {}  -- pro widget-instanz via sensorName key
+local voltageHistory = {}
 
 local options = {
   { "Battery-Sensor", CHOICE, 1, {"tx-voltage", "RxBt"} },      -- 1 / 2
@@ -113,14 +100,14 @@ end
 local function readSensor(opts)
   local sensorName = SENSOR_MAP[opts["Battery-Sensor"]]
   if not sensorName then
-    return nil, "ungültiger sensor-index: " .. tostring(opts["Battery-Sensor"])
+    return nil
   end
   local raw = getValue(sensorName)
   if raw == nil or type(raw) ~= "number" or raw <= 0 or raw > 60 then
-    return nil, "ungültiger rawVoltage=" .. tostring(raw) .. " von '" .. sensorName .. "'"
+    return nil
   end
   local smoothed = smoothVoltage(sensorName, raw)
-  return { name = sensorName, raw = raw, voltage = smoothed }, nil
+  return { name = sensorName, raw = raw, voltage = smoothed }
 end
 
 -- ─── Pipeline: 2) Spannung normalisieren ─────────────────────────────────────
@@ -203,7 +190,7 @@ local function drawBattery(frameX, frameY, frameW, frameH, voltage, percent, col
   lcd.drawFilledRectangle(frameX + 3, frameY + 3, fillW, bodyH - 6, color)
 
   -- Font abhängig von bodyH
-  local font   = getFontProfile(bodyH)
+  local font     = getFontProfile(bodyH)
   local numText  = string.format("%.1f", voltage)
   local unitText = "V"
   local numW     = textWidth(font.flags, numText)
@@ -238,9 +225,8 @@ local function refresh(widget)
   local h = tonumber(widget.zone.h) or 30
 
   -- 1) Sensor lesen + smoothing
-  local sensor, err = readSensor(opts)
+  local sensor = readSensor(opts)
   if not sensor then
-    dbg("ERROR: " .. err)
     drawNoSensor(x, y, w, h, widget)
     return
   end
@@ -256,15 +242,6 @@ local function refresh(widget)
 
   -- 4) Rendern
   local color = getColorForState(state, widget)
-
-  dbg("zone w=" .. tostring(w) .. " h=" .. tostring(h) ..
-      "  sensor=" .. sensor.name ..
-      "  raw=" .. string.format("%.2f", sensor.raw) ..
-      "V  smoothed=" .. string.format("%.2f", sensor.voltage) ..
-      "V  v=" .. string.format("%.2f", voltage) ..
-      "V  " .. string.format("%.2f", minV) .. "-" .. string.format("%.2f", maxV) ..
-      "  " .. tostring(percent) .. "%  " .. state)
-
   drawBattery(x, y, w, h, voltage, percent, color, widget)
 end
 
