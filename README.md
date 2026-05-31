@@ -1,17 +1,14 @@
 # EdgeTX Widgets: LinkMeter & BattMeter
-
-
-
-
-
-
-
-
 Widgets for EdgeTX (2.10.2 or similar).
 
 ## Screenshot
-
 ![Screenshot](images/screenshot.png)
+
+---
+
+## Important: First-Time Setup
+
+After adding a widget, the default values are not functional — you **must open the widget options once** and configure at minimum the sensor and battery type. EdgeTX does not apply defaults until the options have been saved manually.
 
 ---
 
@@ -22,51 +19,50 @@ It combines **`RQly`** and **`RSSI`** into a single visual indicator.
 
 **Features**:
 - Horizontal bars (left to right, increasing height)
-- **Number of bars is fully configurable**
+- Number of bars is fully configurable
 - Color thresholds for low, medium, and high signal quality are configurable
 - Automatically selects and combines the best available signal sources:
   1. **`RQly`**
-  2. Average of **`1RSS`** and **`2RSS`**
+  2. Best of **`1RSS`** and **`2RSS`**
   3. **`RSSI`**
 
 **Options**:
-
-| Name        | Type  | Description                               | Default   |
-|-------------|-------|-------------------------------------------|-----------|
-| ShowPercent | BOOL  | Show **`RQly`** + **`RSSI`** mix           | 1         |
-| Text        | COLOR | Font color                                | White     |
-| Shadow      | COLOR | Font-Shadow color                         | Gray      |
-| BarCount    | VALUE | Number of bars (5–20)                     | 10        |
-| BarColor    | COLOR | Bar color when signal is empty            | Gray      |
-| Low         | COLOR | Bar color for low signal                  | Red       |
-| Medium      | COLOR | Bar color for medium signal               | Orange    |
-| High        | COLOR | Bar color for high signal                 | Green     |
+| Name        | Type  | Description                                | Default |
+|-------------|-------|--------------------------------------------|---------|
+| ShowPercent | BOOL  | Show combined RQly + RSSI score as percent | 1       |
+| Text        | COLOR | Font color                                 | White   |
+| Shadow      | COLOR | Font shadow color                          | Gray    |
+| BarCount    | VALUE | Number of bars (4–22)                      | 10      |
+| BarColor    | COLOR | Bar color when signal is empty             | Gray    |
+| Low         | COLOR | Bar color for low signal (< 80%)           | Red     |
+| Medium      | COLOR | Bar color for medium signal (80–89%)       | Orange  |
+| High        | COLOR | Bar color for high signal (≥ 90%)          | Green   |
 
 ---
 
 ## BattMeter
 
+A graphical representation of your transmitter or receiver battery status.
 
-A graphical representation of your transmitter or receiver battery status.  
-It can display either:
-
-- **TX battery voltage** (**`tx-voltage`**) – default
-- **RX battery voltage** (**`RxBt`**)
+**Features**:
+- Supports TX battery (`tx-voltage`) and RX battery (`RxBt`)
+- Supports Li-Po, Li-Ion, and LiFe chemistry
+- Configurable cell count
+- Voltage smoothing (moving average over 5 samples)
+- Color thresholds: Full, High, Medium, Low, Critical
 
 **Options**:
-
-| Name       | Type   | Description                                                   | Default   |
-|------------|--------|---------------------------------------------------------------|-----------|
-| tx_voltage | BOOL   | TX battery voltage **`tx-voltage`** (1) or RX battery **`RxBt`** (0) | 1         |
-| Cells      | VALUE  | Number of cells (1–8)                                         | 2         |
-| PerCell    | BOOL   | Show voltage per cell (1) or total voltage (0)                | 1         |
-| Text       | COLOR  | Voltage text color                                            | White     |
-| Shadow     | COLOR  | Voltage text shadow color                                     | Dark gray |
-| BatColor   | COLOR  | General color of the battery                                  | Dark gray |
-| Full       | COLOR  | Bar color for 80–100% battery                                 | Green     |
-| High       | COLOR  | Bar color for 60–79% battery                                  | Olive     |
-| Medium     | COLOR  | Bar color for 40–59% battery                                  | Yellow    |
-| Low        | COLOR  | Bar color for 20–39% battery                                  | Orange    |
-
----
-
+| Name           | Type   | Description                                               | Default  |
+|----------------|--------|-----------------------------------------------------------|----------|
+| Battery-Sensor | CHOICE | Sensor: `tx-voltage` or `RxBt`                           | tx-voltage |
+| Battery-Type   | CHOICE | Cell chemistry: Li-Po, Li-Ion, or LiFe                   | Li-Po    |
+| Cells          | VALUE  | Number of cells (1–8)                                     | 2        |
+| PerCell        | BOOL   | Sensor delivers total voltage (1) or per-cell voltage (0) | 1        |
+| Text           | COLOR  | Voltage text color                                        | White    |
+| Shadow         | COLOR  | Voltage text shadow color                                 | Dark gray |
+| BatColor       | COLOR  | Empty battery body color                                  | Dark gray |
+| Full           | COLOR  | Fill color for 80–100%                                    | Green    |
+| High           | COLOR  | Fill color for 60–79%                                     | Olive    |
+| Medium         | COLOR  | Fill color for 40–59%                                     | Yellow   |
+| Low            | COLOR  | Fill color for 20–39%                                     | Orange   |
+| Critical       | COLOR  | Fill color for 0–19%                                      | Red      |
