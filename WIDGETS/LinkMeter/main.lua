@@ -1,8 +1,13 @@
 -- /WIDGETS/LinkMeter/main.lua
 -- LinkMeter Widget
--- Copyright (C) 2025 Calari - chatGPG hat reklamiert, claude.ai hat umgesetzt
--- v4: log10-RSSI-Kurve, dual-scale fix, denom refactor, shadow hardening,
---     debug-Flag, string.format → concat, Architektur-Kommentare konsolidiert.
+-- Version: 0.40
+-- Copyright (C) 2025 Calari
+-- SPDX-License-Identifier: GPL-3.0-or-later
+--
+-- Changelog:
+--   0.51  log10-RSSI-Kurve statt x²; dual-scale fix (fill und Geometrie
+--         auf gleicher Skala); denom-Refactor; Shadow-Hardening via
+--         HAS_NATIVE_SHADOW; Debug-Flag; string.format → concat.
 
 -- ─── Konstanten ─────────────────────────────────────────────────────────────
 local GAP           = 1
@@ -11,14 +16,14 @@ local GROWTH_FACTOR = 2.0
 local SHADOW_OFFSET = 1
 local TEXT_OFFSET_X = 4
 local TEXT_OFFSET_Y = 2
-local ZONE_Y_ADJUST = -2
+local ZONE_Y_ADJUST = -2   -- empirische Korrektur: EdgeTX-Zonen starten 2px zu tief
 
-local RSSI_MIN = -110   -- dBm → 0
-local RSSI_MAX = -50    -- dBm → 100
+local RSSI_MIN = -110   -- dBm → 0 %
+local RSSI_MAX = -50    -- dBm → 100 %
 
 -- Gewichtung des heuristischen UX-Scores (kein RF-Diagnosemodell):
---   RQly  = diskrete Paketverlustrate      (dominant)
---   RSSI  = analoger HF-Pegel, normalisiert (ergänzend)
+--   RQly  = diskrete Paketverlustrate       (dominant)
+--   RSSI  = analoger HF-Pegel, normalisiert  (ergänzend)
 local LINK_SCORE_WEIGHT_RQ   = 0.8
 local LINK_SCORE_WEIGHT_RSSI = 0.2
 
@@ -26,8 +31,6 @@ local LINK_SCORE_WEIGHT_RSSI = 0.2
 -- Im Feldbetrieb auf false setzen, um fremde Widgets nicht zu überdecken.
 local DEBUG_MODE = false
 
--- Fix #5 (v4): nil-check statt type()-Vergleich – robuster gegen
--- unterschiedliche Build-Typisierung von EdgeTX-API-Konstanten.
 local HAS_NATIVE_SHADOW = SHADOWED ~= nil
 
 local options = {
@@ -48,10 +51,8 @@ local function clampPercent(value)
   return math.max(0, math.min(100, math.floor(value)))
 end
 
--- Fix #1 (v4): Logarithmische Sättigungskurve statt x².
--- log10(1 + 9x) bildet RF-Intuition besser ab als quadratisch:
---   x=0 → 0, x=1 → 1, mittlere Bereiche realistischer gewichtet.
--- Bleibt Heuristik – kein echtes Friis-Modell, aber perceptually sinnvoll.
+-- Logarithmische Sättigungskurve: log10(1 + 9x) bildet RF-Intuition besser
+-- ab als quadratisch. Bleibt Heuristik – kein echtes Friis-Modell.
 local function normalizeRSSI(rssi)
   local r = tonumber(rssi)
   if not r or r <= RSSI_MIN then return 0 end
@@ -60,7 +61,7 @@ local function normalizeRSSI(rssi)
   return math.floor(math.log10(1 + 9 * x) * 100 + 0.5)
 end
 
--- Keine table-Allokation im hot path (v2, unverändert).
+-- Keine table-Allokation im hot path.
 local function getBestRSSI()
   local v1 = getValue("1RSS")
   local v2 = getValue("2RSS")
@@ -105,14 +106,12 @@ end
 local function drawBars(x, y, w, h, percent, widget)
   local bars = widget.options.BarCount
 
-  -- Fix #3 (v4): denom als explizite Variable, guard separat.
   local denom    = math.max(1, bars - 1)
   local barWidth = math.max(1, math.floor((w - (bars - 1) * GAP) / bars))
   local maxH     = h - 4
 
-  -- Fix #4 (v4): filled nutzt dieselbe nichtlineare Kurve wie die Balkenhöhen,
+  -- filled nutzt dieselbe log10-Kurve wie die Balkenhöhen,
   -- damit fill state und Geometrie auf derselben Skala arbeiten.
-  -- Beide verwenden log10(1 + 9·x) – kein dual-scaling-Artefakt mehr.
   local fillX  = percent / 100
   local filled = math.floor(math.log10(1 + 9 * fillX) * bars + 0.5)
 
@@ -125,8 +124,8 @@ local function drawBars(x, y, w, h, percent, widget)
     fillColor = widget.options.High
   end
 
-  -- Balken-Geometrie: nichtlineare ästhetische Progression (bewusst).
-  -- GROWTH_FACTOR komprimiert kleine Werte visuell – UX-Entscheid, kein Bug.
+  -- Nichtlineare ästhetische Progression: GROWTH_FACTOR komprimiert kleine
+  -- Werte visuell – bewusster UX-Entscheid.
   for i = 1, bars do
     local factor    = (i - 1) / denom
     local barHeight = math.max(MIN_HEIGHT, math.ceil(
@@ -141,9 +140,6 @@ local function drawBars(x, y, w, h, percent, widget)
   end
 end
 
--- Fix #7 (v4): percent .. "%" statt string.format – kein Alloc-Overhead
---              durch format-Parser auf embedded Lua.
--- Fix #5 (v4): deterministischer Shadow-Pfad via HAS_NATIVE_SHADOW.
 local function drawPercentText(x, y, percent, widget)
   local text = percent .. "%"
   if HAS_NATIVE_SHADOW then
@@ -158,8 +154,6 @@ local function refresh(widget)
   local percent = clampPercent(getSignalValue())
   local z       = safeZone(widget.zone)
 
-  -- Fix #6 (v4): Debug-Text nur wenn DEBUG_MODE aktiv –
-  -- verhindert UI-Verschmutzung im Feldbetrieb.
   if z.w <= 0 or z.h <= 0 then
     if DEBUG_MODE then
       lcd.drawText(0, 0, "LinkMeter: invalid zone", 0)
