@@ -1,6 +1,9 @@
 -- /WIDGETS/BattMeter/main.lua
 -- BattMeter Widget
+-- Version: 0.51
 -- Copyright (C) 2026 Calari
+-- SPDX-License-Identifier: GPL-3.0-or-later
+
 
 -- Sensor-Map: CHOICE index → sensor name
 local SENSOR_MAP = {
@@ -46,9 +49,10 @@ local BATT_TYPES = {
 -- Font-Profile: kalibriert auf gemessene Zonengrössen
 -- baseline: empirisch ermittelt (h=39 Zone → 40 ergibt korrekte Y-Zentrierung)
 local FONT_PROFILES = {
-  large  = { flags = MIDSIZE + BOLD, baseline = 40 },  -- bodyH >= 35, kalibriert h=39
-  medium = { flags = BOLD,           baseline = 13 },  -- bodyH >= 22
-  small  = { flags = SMLSIZE + BOLD, baseline =  9 },  -- bodyH <  22
+  large        = { flags = MIDSIZE + BOLD, baseline = 40 },  -- bodyH >= 35, voltage < 10
+  medium_large = { flags = BOLD,           baseline = 20 },  -- bodyH >= 35, voltage >= 10 (4-stellig)
+  medium       = { flags = BOLD,           baseline = 13 },  -- bodyH >= 22
+  small        = { flags = SMLSIZE + BOLD, baseline =  9 },  -- bodyH <  22
 }
 
 -- Smoothing: moving average über N samples
@@ -59,6 +63,8 @@ local options = {
   { "Battery-Sensor", CHOICE, 1, {"tx-voltage", "RxBt"} },      -- 1 / 2
   { "Battery-Type",   CHOICE, 1, {"Li-Po", "Li-Ion", "LiFe"} }, -- 1 / 2 / 3
   { "Cells",          VALUE,  2, 1, 8 },
+  -- PerCell = 1 (true):  Sensor liefert Gesamtspannung; Anzeige und Berechnung per Zelle
+  -- PerCell = 0 (false): Sensor liefert bereits Einzelzellen-Spannung
   { "PerCell",        BOOL,   1 },
   { "Text",           COLOR,  lcd.RGB(255, 255, 255) },
   { "Shadow",         COLOR,  lcd.RGB(80, 80, 80) },
@@ -80,6 +86,15 @@ local function textWidth(flags, text)
 end
 
 -- ─── Smoothing ────────────────────────────────────────────────────────────────
+
+-- Bereinigt History-Einträge für nicht mehr verwendete Sensoren
+local function pruneVoltageHistory(activeSensorName)
+  for key in pairs(voltageHistory) do
+    if key ~= activeSensorName then
+      voltageHistory[key] = nil
+    end
+  end
+end
 
 local function smoothVoltage(key, newValue)
   if not voltageHistory[key] then
@@ -106,12 +121,15 @@ local function readSensor(opts)
   if raw == nil or type(raw) ~= "number" or raw <= 0 or raw > 60 then
     return nil
   end
+  pruneVoltageHistory(sensorName)
   local smoothed = smoothVoltage(sensorName, raw)
   return { name = sensorName, raw = raw, voltage = smoothed }
 end
 
 -- ─── Pipeline: 2) Spannung normalisieren ─────────────────────────────────────
 
+-- isPerCell = true:  Sensor liefert Gesamtspannung → teile durch Zellen für Anzeige/Vergleich
+-- isPerCell = false: Sensor liefert bereits Zellen-Spannung → skaliere minV/maxV auf Gesamtpack
 local function normalizeVoltage(voltage, btype, cells, isPerCell)
   local minV, maxV = btype.minV, btype.maxV
   if isPerCell then
@@ -152,17 +170,22 @@ local function getColorForState(state, widget)
   return widget.options.Critical
 end
 
-local function getFontProfile(bodyH)
-  if bodyH >= 35 then return FONT_PROFILES.large  end
-  if bodyH >= 22 then return FONT_PROFILES.medium end
+local function getFontProfile(bodyH, voltage)
+  local large  = bodyH >= 35
+  local medium = bodyH >= 22
+  local wide   = voltage >= 10  -- 4-stellig: eine Stufe kleiner
+  if large  and not wide then return FONT_PROFILES.large        end
+  if large  and wide     then return FONT_PROFILES.medium_large end
+  if medium              then return FONT_PROFILES.medium       end
   return FONT_PROFILES.small
 end
 
 local function drawNoSensor(frameX, frameY, frameW, frameH, widget)
-  local msg   = "No sensor!"
-  local msgW  = textWidth(SMLSIZE, msg)
-  local textX = frameX + math.floor((frameW - msgW) / 2)
-  local textY = frameY + math.floor(frameH / 2) - 8
+  local msg    = "No sensor!"
+  local msgW   = textWidth(SMLSIZE, msg)
+  local textX  = frameX + math.floor((frameW - msgW) / 2)
+  local textY  = frameY + math.floor(frameH / 2) - 8
+  -- FIX: Shadow-Farbe separat übergeben, nicht als Flag kombinieren
   lcd.drawText(textX + 2, textY + 2, msg, SMLSIZE + widget.options.Shadow)
   lcd.drawText(textX,     textY,     msg, SMLSIZE + lcd.RGB(255, 0, 0))
 end
@@ -189,8 +212,8 @@ local function drawBattery(frameX, frameY, frameW, frameH, voltage, percent, col
   local fillW   = math.max(0, math.min(maxFill, math.floor(maxFill * percent / 100)))
   lcd.drawFilledRectangle(frameX + 3, frameY + 3, fillW, bodyH - 6, color)
 
-  -- Font abhängig von bodyH
-  local font     = getFontProfile(bodyH)
+  -- Font abhängig von bodyH und Stellenanzahl
+  local font     = getFontProfile(bodyH, voltage)
   local numText  = string.format("%.1f", voltage)
   local unitText = "V"
   local numW     = textWidth(font.flags, numText)
